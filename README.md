@@ -2,6 +2,13 @@
 
 A personal stock and dividend tracker for Bursa Malaysia and US stocks. Record your buys and sells, see your profit in Malaysian ringgit (MYR), and keep everything on your own phone or computer. No account and no server for your data.
 
+<p align="center">
+  <img src="docs/stocks.png" width="260" alt="Stocks page with total value, ring chart and stock cards">
+  <img src="docs/history.png" width="260" alt="History page with trades grouped by month">
+  <img src="docs/menu.png" width="260" alt="The + menu: Bought, Sold, Import CSV, Export CSV">
+</p>
+<p align="center"><sub>Screenshots use sample trades, not real ones.</sub></p>
+
 ## What it does
 
 - Records buy and sell trades, with commission fees (stamp duty and platform fee) counted in your cost and profit.
