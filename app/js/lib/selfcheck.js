@@ -17,6 +17,14 @@ export function runSelfChecks() {
   ]);
   ok(h.units === 150 && near(h.cost, 1425) && near(h.realised, 50), 'average cost');
 
+  // Dividends received: counted per stock, but never change units or cost
+  const [d] = buildHoldings([
+    { id: 1, date: '2025-01-01', ticker: 'Z', market: 'MY', action: 'buy', units: 100, price: 9 },
+    { id: 2, date: '2025-02-01', ticker: 'Z', market: 'MY', action: 'dividend', amount: 30 },
+    { id: 3, date: '2025-03-01', ticker: 'Z', market: 'MY', action: 'dividend', amount: 12.5 },
+  ]);
+  ok(d.units === 100 && near(d.cost, 900) && near(d.received, 42.5), 'dividends received');
+
   // Fees: buy 100 @ 9 + 10 → cost 910; sell 50 @ 10 + 5 → realised (10 − 9.10) × 50 − 5 = 40
   const [f] = buildHoldings([
     { id: 1, date: '2025-01-01', ticker: 'Y', market: 'MY', action: 'buy', units: 100, price: 9, fee: 10 },
@@ -63,6 +71,7 @@ export function runSelfChecks() {
   const sample = [
     { id: 1, date: '2026-01-06', ticker: '1155', market: 'MY', action: 'buy', type: 'dividend', units: 1000, price: 9, fee: 24.5, divTax: 0, notes: 'First, "big" buy' },
     { id: 2, date: '2026-03-14', ticker: 'AAPL', market: 'US', action: 'sell', type: 'growth', units: 2, price: 301.25, fee: 1.99, divTax: 30, notes: '' },
+    { id: 3, date: '2026-04-20', ticker: '1155', market: 'MY', action: 'dividend', type: 'dividend', units: 0, price: 0, fee: 0, amount: 55.5, notes: '' },
   ];
   const back = parseCSV(tradesToCSV(sample));
   const bm = detectMapping(back[0], back.slice(1));

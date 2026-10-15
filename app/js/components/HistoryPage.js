@@ -6,7 +6,7 @@ import { state, openSheet, deleteTrade, exportCSV, importFile, lastExport, toast
 import { money, qty, monthName, niceDate, today } from '../lib/format.js';
 import { toMYR } from '../lib/markets.js';
 
-const cashOf = t => t.units * t.price + (t.action === 'sell' ? -1 : 1) * (t.fee || 0); // money out (buy) or in (sell), fees included
+const cashOf = t => t.action === 'dividend' ? t.amount : t.units * t.price + (t.action === 'sell' ? -1 : 1) * (t.fee || 0); // money out (buy) or in (sell), fees included
 
 export default {
   name: 'HistoryPage',
@@ -35,18 +35,19 @@ export default {
           <p class="month-total"><template v-for="(part, i) in g.parts" :key="i"><template v-if="i"> · </template>{{ part.label }} <b>{{ part.value }}</b></template></p>
         </div>
         <TransitionGroup name="trade" tag="div" class="log-list">
-          <SwipeRow v-for="t in g.list" :key="t.id" :open="openId === t.id" :label="(t.action === 'sell' ? 'Sold ' : 'Bought ') + t.ticker + ' on ' + niceDate(t.date)"
+          <SwipeRow v-for="t in g.list" :key="t.id" :open="openId === t.id" :label="(t.action === 'dividend' ? 'Dividend from ' : t.action === 'sell' ? 'Sold ' : 'Bought ') + t.ticker + ' on ' + niceDate(t.date)"
             @update:open="v => (openId = v ? t.id : openId === t.id ? null : openId)" @tap="edit(t)" @edit="edit(t)" @delete="remove(t)">
           <div class="log-item" :class="{ glow: state.glowId === t.id }">
             <div class="log-left">
               <div class="log-ticker">{{ t.ticker }}
-                <span class="tag" :class="t.action === 'sell' ? 'tag-sell' : 'tag-buy'">{{ t.action === 'sell' ? 'Sell' : 'Buy' }}</span>
+                <span class="tag" :class="t.action === 'dividend' ? 'tag-div' : t.action === 'sell' ? 'tag-sell' : 'tag-buy'">{{ t.action === 'dividend' ? 'Dividend' : t.action === 'sell' ? 'Sell' : 'Buy' }}</span>
                 <span class="tag tag-info">{{ t.market }}</span></div>
-              <div class="log-detail">{{ t.date }} · {{ qty(t.units) }} units @ {{ money(t.price, t.market) }}{{ t.fee ? ' · fees ' + money(t.fee, t.market) : '' }}</div>
+              <div v-if="t.action === 'dividend'" class="log-detail">{{ t.date }} · received</div>
+              <div v-else class="log-detail">{{ t.date }} · {{ qty(t.units) }} units @ {{ money(t.price, t.market) }}{{ t.fee ? ' · fees ' + money(t.fee, t.market) : '' }}</div>
               <div v-if="t.notes" class="log-detail">{{ t.notes }}</div>
             </div>
             <div class="log-right">
-              <span class="log-amount" :class="t.action === 'sell' ? 'up' : 'down'">{{ t.action === 'sell' ? '+' : '−' }}{{ money(cashOf(t), t.market) }}</span>
+              <span class="log-amount" :class="t.action === 'buy' ? 'down' : 'up'">{{ t.action === 'buy' ? '−' : '+' }}{{ money(cashOf(t), t.market) }}</span>
             </div>
           </div>
           </SwipeRow>
@@ -64,15 +65,16 @@ export default {
         out.at(-1).list.push(t);
       }
       for (const g of out) {
-        let bought = 0, sold = 0, missing = false;
+        let bought = 0, sold = 0, divs = 0, missing = false;
         for (const t of g.list) {
           const rm = toMYR(cashOf(t), t.market, state.live.rates);
           if (rm == null) { missing = true; continue; }
-          if (t.action === 'sell') sold += rm; else bought += rm;
+          if (t.action === 'dividend') divs += rm; else if (t.action === 'sell') sold += rm; else bought += rm;
         }
         g.parts = [
           bought > 0 && { label: 'Bought', value: money(bought, 'MY') },
           sold > 0 && { label: 'Sold', value: money(sold, 'MY') },
+          divs > 0 && { label: 'Dividends', value: money(divs, 'MY') },
           missing && { label: 'some not counted yet', value: '' },
         ].filter(Boolean);
       }

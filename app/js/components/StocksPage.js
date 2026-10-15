@@ -30,7 +30,8 @@ export default {
       <template v-else>
         <TotalCard/>
         <ul class="facts">
-          <li><span>Dividends you get</span><b class="div">{{ t.dividends > 0 ? money(t.dividends / 12, 'MY') + ' a month' : 'None yet' }}</b></li>
+          <li><span>Dividends expected</span><b class="div">{{ t.dividends > 0 ? money(t.dividends / 12, 'MY') + ' a month' : 'None yet' }}</b></li>
+          <li><span>Dividends received</span><b class="div">{{ t.received > 0 ? money(t.received, 'MY') : 'None yet' }}</b></li>
           <li><span>You put in</span><b>{{ money(t.cost, 'MY') }}</b></li>
           <li><span>Profit from selling</span><b :class="tone(t.realised)">{{ signed(t.realised, 'MY') }}</b></li>
           <li><span>Commission fees paid</span><b>{{ money(t.fees, 'MY') }}</b></li>

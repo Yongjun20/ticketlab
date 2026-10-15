@@ -40,7 +40,7 @@ export default {
           <div class="imp-table-wrap"><table class="imp-table">
             <thead><tr><th>Date</th><th></th><th>Stock</th><th>Market</th><th>Units</th><th>Price</th><th>Fees</th></tr></thead>
             <tbody><tr v-for="(t, i) in result.ready.slice(0, 8)" :key="i">
-              <td>{{ t.date }}</td><td :class="t.action === 'sell' ? 'down' : 'up'">{{ t.action === 'sell' ? 'Sell' : 'Buy' }}</td>
+              <td>{{ t.date }}</td><td :class="t.action === 'buy' ? 'up' : t.action === 'sell' ? 'down' : 'div'">{{ t.action === 'dividend' ? 'Dividend' : t.action === 'sell' ? 'Sell' : 'Buy' }}</td>
               <td>{{ t.ticker }}</td><td>{{ t.market }}</td><td>{{ qty(t.units) }}</td><td>{{ money(t.price, t.market) }}</td><td>{{ t.fee ? money(t.fee, t.market) : '—' }}</td>
             </tr></tbody>
           </table></div>

@@ -8,6 +8,7 @@ export const csvCell = v => { const s = String(v ?? ''); return /[",\r\n]/.test(
 
 export function tradesToCSV(txns) {
   const rows = [...txns].sort((a, b) => a.date.localeCompare(b.date) || (a.id ?? 0) - (b.id ?? 0)).map(t => {
+    if (t.action === 'dividend') return [t.date, 'Dividend', t.ticker, t.market, '', '', 0, +(t.amount || 0).toFixed(4), 'Dividend', 0, t.notes || ''];
     const sell = t.action === 'sell', fee = t.fee || 0;
     return [t.date, sell ? 'Sell' : 'Buy', t.ticker, t.market, t.units, t.price, fee,
       +(t.units * t.price + (sell ? -fee : fee)).toFixed(4), t.type === 'growth' ? 'Growth' : 'Dividend', t.divTax ?? 0, t.notes || ''];
@@ -171,6 +172,14 @@ export function rowToTrade(row, map, { dateOrder = 'dmy', defaultMarket = 'US' }
   const date = parseDateCell(get('date'), dateOrder);
   if (!date) return { skip: 'No date' };
   if (!get('ticker')) return { skip: 'No stock code' };
+  if (/^\s*dividends?\s*$/i.test(get('action'))) { // a dividend you received (this app's own export writes these)
+    const paid = Math.abs(parseNum(get('amount')));
+    if (!(paid > 0)) return { skip: 'Dividend with no amount' };
+    let m = marketFromWord(get('market')) || marketFromWord(get('currency'));
+    const c = cleanTicker(get('ticker'), m);
+    m = c.market || (/^\d{4}$/.test(c.ticker) ? 'MY' : defaultMarket);
+    return { trade: { date, ticker: c.ticker, market: m, action: 'dividend', type: 'dividend', units: 0, price: 0, fee: 0, amount: +paid.toFixed(4), notes: get('notes') } };
+  }
   const unitsRaw = parseNum(get('units'));
   let action = map.action != null ? parseAction(get('action')) : (unitsRaw < 0 ? 'sell' : 'buy');
   if (!action && unitsRaw < 0) action = 'sell';
@@ -195,4 +204,4 @@ export function rowToTrade(row, map, { dateOrder = 'dmy', defaultMarket = 'US' }
   } };
 }
 // Same date, stock, side, units, price and fees = the same trade
-export const tradeKey = t => [t.date, t.ticker, t.market, t.action, +t.units, (+t.price).toFixed(4), (+(t.fee || 0)).toFixed(2)].join('|');
+export const tradeKey = t => [t.date, t.ticker, t.market, t.action, +t.units, (+t.price).toFixed(4), (+(t.fee || 0)).toFixed(2), t.action === 'dividend' ? (+t.amount).toFixed(4) : ''].join('|');

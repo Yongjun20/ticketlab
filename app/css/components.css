@@ -133,6 +133,7 @@
 .log-amount { font-size: 14px; font-weight: 700; }
 .tag { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.05em; }
 .tag-buy { background: color-mix(in srgb, var(--up) 14%, transparent); color: var(--up); }
+.tag-div { background: color-mix(in srgb, var(--div) 16%, transparent); color: var(--div); }
 .tag-sell { background: color-mix(in srgb, var(--down) 14%, transparent); color: var(--down); }
 .tag-info { background: color-mix(in srgb, var(--tag) 14%, transparent); color: var(--tag); }
 /* Swipe a card left to reveal Edit and Delete behind it */
@@ -183,7 +184,8 @@
 .dial-circle { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; color: #FFFFFF; box-shadow: var(--shadow); transition: transform 0.2s var(--spring); }
 .dial-circle svg { width: 22px; height: 22px; }
 .dial-buy { background: #0F7B4D; }   /* white icon 5.4:1 */
-.dial-sell { background: #C7362F; }  /* white icon 5.0:1 */
+.dial-sell { background: #C7362F; }
+.dial-dividend { background: #9A5B00; } /* white icon 5.1:1 */  /* white icon 5.0:1 */
 .dial-import, .dial-export { background: var(--action); color: var(--action-ink); }
 .dial-item:active .dial-circle { transform: scale(0.9); }
 @media (prefers-reduced-transparency: reduce) { .tabbar { background: var(--panel); backdrop-filter: none; -webkit-backdrop-filter: none; } }
@@ -217,13 +219,15 @@ select.input { padding-right: 34px; background-image: linear-gradient(45deg, tra
 .search .input { padding-left: 44px; }
 
 /* Bought / Sold: the highlight slides between them */
-.toggle { position: relative; display: grid; grid-template-columns: 1fr 1fr; padding: 4px; border-radius: 12px; background: var(--field); }
-.toggle-pill { position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc(50% - 4px); border-radius: 9px; border: 2px solid var(--up);
+.toggle { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); padding: 4px; border-radius: 12px; background: var(--field); }
+.toggle-pill { position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc((100% - 8px) / 3); border-radius: 9px; border: 2px solid var(--up);
   background: color-mix(in srgb, var(--up) 10%, var(--panel)); transition: transform 0.38s var(--spring), border-color 0.3s, background 0.3s; }
+.toggle.dividend .toggle-pill { transform: translateX(200%); border-color: var(--div); background: color-mix(in srgb, var(--div) 10%, var(--panel)); }
 .toggle.sell .toggle-pill { transform: translateX(100%); border-color: var(--down); background: color-mix(in srgb, var(--down) 10%, var(--panel)); }
 .toggle button { position: relative; z-index: 1; min-height: 40px; border: 0; background: none; font-weight: 700; font-size: 14px; color: var(--muted); transition: color 0.3s; }
 .toggle.buy button:first-of-type { color: var(--up); }
-.toggle.sell button:last-of-type { color: var(--down); }
+.toggle.sell button:nth-of-type(2) { color: var(--down); }
+.toggle.dividend button:last-of-type { color: var(--div); }
 
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip { min-height: 36px; padding: 0 14px; border-radius: 18px; border: 1px solid var(--line); background: var(--field); font-weight: 600; font-size: 13px;

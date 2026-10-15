@@ -1,5 +1,5 @@
 // Floating capsule with Stocks | History (the pill slides, and follows your thumb while you swipe)
-// plus a round + button. Tapping + opens a small menu that pops up above it: Bought, Sold, Import CSV, Export CSV.
+// plus a round + button. Tapping + opens a small menu that pops up above it: Bought, Sold, Dividend, Import CSV, Export CSV.
 import { ref, watch, onBeforeUnmount } from '../vendor/vue.esm-browser.prod.js';
 import { state, pagerApi, openSheet, importFile, exportCSV } from '../store.js';
 
@@ -7,6 +7,7 @@ import { state, pagerApi, openSheet, importFile, exportCSV } from '../store.js';
 const ITEMS = [
   { key: 'buy', label: 'Bought', icon: '<path d="M12 5v14M5 12h14"/>' },
   { key: 'sell', label: 'Sold', icon: '<path d="M5 12h14"/>' },
+  { key: 'dividend', label: 'Dividend', icon: '<path d="M12 3v18M16 7.5c0-1.7-1.8-3-4-3s-4 1.3-4 3 1.8 2.6 4 3 4 1.3 4 3-1.8 3-4 3-4-1.3-4-3"/>' },
   { key: 'import', label: 'Import CSV', icon: '<path d="M12 15V4m-4 4 4-4 4 4M5 20h14"/>' },
   { key: 'export', label: 'Export CSV', icon: '<path d="M12 4v11m-4-4 4 4 4-4M5 20h14"/>' },
 ];
@@ -47,7 +48,7 @@ export default {
     const menu = ref(false), file = ref(null);
 
     function choose(key) {
-      if (key === 'buy' || key === 'sell') openSheet({ action: key });
+      if (key === 'buy' || key === 'sell' || key === 'dividend') openSheet({ action: key });
       if (key === 'import') file.value.click(); // opens the phone's file picker (allowed because you tapped)
       if (key === 'export') exportCSV();
       menu.value = false;

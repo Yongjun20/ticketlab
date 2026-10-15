@@ -9,18 +9,19 @@ import { money, qty, niceDate, today, tone, MARKET_NAME, CURRENCY, DEFAULT_TAX }
 
 import BottomSheet from './BottomSheet.js';
 
-const blank = () => ({ action: 'buy', ticker: '', market: 'MY', units: '', price: '', fee: '', date: today(), type: 'dividend', tax: 0, notes: '' });
+const blank = () => ({ action: 'buy', ticker: '', market: 'MY', units: '', price: '', fee: '', date: today(), type: 'dividend', tax: 0, amount: '', notes: '' });
 
 export default {
   name: 'TradeSheet',
   components: { BottomSheet },
   template: `
-    <BottomSheet :open="!!state.sheet" :title="editing ? 'Change trade' : 'Add a trade'" @close="close">
+    <BottomSheet :open="!!state.sheet" :title="isDiv ? (editing ? 'Change dividend' : 'Add a dividend') : editing ? 'Change trade' : 'Add a trade'" @close="close">
       <form class="form" novalidate @submit.prevent="save">
-        <div class="toggle" :class="f.action" role="radiogroup" aria-label="Did you buy or sell?">
+        <div class="toggle" :class="f.action" role="radiogroup" aria-label="Bought, sold or dividend?">
           <span class="toggle-pill" aria-hidden="true"></span>
           <button type="button" role="radio" :aria-checked="f.action === 'buy'" @click="f.action = 'buy'">Bought</button>
           <button type="button" role="radio" :aria-checked="f.action === 'sell'" @click="f.action = 'sell'">Sold</button>
+          <button type="button" role="radio" :aria-checked="f.action === 'dividend'" @click="f.action = 'dividend'">Dividend</button>
         </div>
 
         <div class="field">
@@ -55,6 +56,15 @@ export default {
           </div>
         </div>
 
+        <template v-if="isDiv">
+          <div class="two">
+            <div class="field"><label for="f-amount">Amount received</label><input id="f-amount" class="input" type="number" min="0" step="any" inputmode="decimal" placeholder="0.00" v-model="f.amount"></div>
+            <div class="field"><label for="f-date-d">Date</label><input id="f-date-d" class="input" type="date" v-model="f.date"></div>
+          </div>
+          <p class="hint">The cash that reached your account, after any tax, in the stock's own currency.</p>
+          <div class="field"><label for="f-notes-d">Notes</label><input id="f-notes-d" class="input" placeholder="Optional" autocomplete="off" v-model="f.notes"></div>
+        </template>
+        <template v-else>
         <div class="two">
           <div class="field"><label for="f-units">How many units</label><input id="f-units" class="input" type="number" min="0" step="any" inputmode="decimal" placeholder="100" v-model="f.units"></div>
           <div class="field"><label for="f-price">Price per unit</label><input id="f-price" class="input" type="number" min="0" step="any" inputmode="decimal" placeholder="0.00" v-model="f.price"></div>
@@ -79,10 +89,11 @@ export default {
             <div class="field"><label for="f-notes">Notes</label><input id="f-notes" class="input" placeholder="Optional" autocomplete="off" v-model="f.notes"></div>
           </div>
         </div>
+        </template>
 
         <Transition name="shake"><p v-if="error" :key="error" class="error" role="alert">{{ error }}</p></Transition>
         <button type="submit" class="save" :class="{ done: saved }" :disabled="!ready || busy">
-          <span v-if="saved" class="tick" aria-hidden="true">✓</span>{{ saved ? 'Saved' : editing ? 'Save changes' : f.action === 'sell' ? 'Save sale' : 'Save purchase' }}
+          <span v-if="saved" class="tick" aria-hidden="true">✓</span>{{ saved ? 'Saved' : editing ? 'Save changes' : isDiv ? 'Save dividend' : f.action === 'sell' ? 'Save sale' : 'Save purchase' }}
         </button>
       </form>
     </BottomSheet>`,
@@ -101,7 +112,7 @@ export default {
       if (!key) return;
       const s = state.sheet, t = s.trade;
       Object.assign(f, blank(), t
-        ? { action: t.action, ticker: t.ticker, market: t.market, units: t.units, price: t.price, fee: t.fee || '', date: t.date, type: t.type || 'dividend', tax: t.divTax ?? 0, notes: t.notes || '' }
+        ? { action: t.action, ticker: t.ticker, market: t.market, units: t.units, price: t.price, fee: t.fee || '', date: t.date, type: t.type || 'dividend', tax: t.divTax ?? 0, amount: t.amount ?? '', notes: t.notes || '' }
         : { action: s.action || 'buy', ticker: s.ticker || '', market: s.market || 'MY', tax: DEFAULT_TAX[s.market || 'MY'] ?? 0 });
       more.value = false; error.value = ''; busy.value = false; saved.value = false; results.value = null;
       opened = snapshot();
@@ -110,8 +121,10 @@ export default {
     const setMarket = m => { f.market = m; f.tax = DEFAULT_TAX[m] ?? 0; };
 
     const nums = computed(() => ({ units: parseFloat(f.units), price: parseFloat(f.price), fee: String(f.fee).trim() === '' ? 0 : parseFloat(f.fee) }));
-    const ready = computed(() => !!f.ticker && nums.value.units > 0 && nums.value.price >= 0 && nums.value.fee >= 0 && /^\d{4}-\d{2}-\d{2}$/.test(f.date));
+    const isDiv = computed(() => f.action === 'dividend');
+    const ready = computed(() => isDiv.value ? !!f.ticker && parseFloat(f.amount) > 0 && /^\d{4}-\d{2}-\d{2}$/.test(f.date) : !!f.ticker && nums.value.units > 0 && nums.value.price >= 0 && nums.value.fee >= 0 && /^\d{4}-\d{2}-\d{2}$/.test(f.date));
     const total = computed(() => {
+      if (isDiv.value) return '';
       const { units, price, fee } = nums.value;
       let text = '';
       if (units > 0 && price >= 0) {
@@ -172,6 +185,17 @@ export default {
 
     async function save() {
       if (!ready.value || busy.value) return;
+      if (isDiv.value) {
+        const d = { date: f.date, ticker: f.ticker.toUpperCase(), market: f.market, action: 'dividend', type: 'dividend', units: 0, price: 0, fee: 0, amount: parseFloat(f.amount), notes: String(f.notes).trim() };
+        if (!holdings.value.some(h => h.ticker === d.ticker && h.market === d.market)) return (error.value = `You have no bought record for ${d.ticker}. Add the purchase first.`);
+        error.value = ''; busy.value = true;
+        const id = state.sheet.trade?.id ?? null;
+        await saveTrade(d, id);
+        saved.value = true;
+        toast(id ? `Changes saved: ${d.ticker}` : `Saved: dividend from ${d.ticker}`);
+        setTimeout(() => { state.sheet = null; }, 450);
+        return;
+      }
       const { units, price, fee } = nums.value;
       const t = { date: f.date, ticker: f.ticker.toUpperCase(), market: f.market, action: f.action, type: f.type, units, price, fee: fee || 0,
         divTax: parseFloat(f.tax) || 0, notes: String(f.notes).trim() };
@@ -189,7 +213,7 @@ export default {
       setTimeout(() => { state.sheet = null; }, 450);
     }
 
-    return { state, f, more, error, busy, saved, results, searching, searchNote, markets, editing, ready, total,
+    return { state, f, more, error, busy, saved, isDiv, results, searching, searchNote, markets, editing, ready, total,
       setMarket, showOwned, typed, pick, close, save, money, tone, MARKET_NAME };
   },
 };
