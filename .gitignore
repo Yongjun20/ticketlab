@@ -1,0 +1,4 @@
+# Cloudflare's temporary files and installed packages: not part of the app
+.wrangler/
+node_modules/
+app/js/config.js

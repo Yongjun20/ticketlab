@@ -1,0 +1,8 @@
+{
+  "name": "divtracker",
+  "private": true,
+  "description": "Personal stock and dividend tracker",
+  "scripts": {
+    "dev": "node preview.js"
+  }
+}

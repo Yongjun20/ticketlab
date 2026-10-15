@@ -1,0 +1,26 @@
+/* Colours, font and motion settings used everywhere.
+   Green = up, red = down, amber = dividends, navy = actions. Stocks wear ringgit-note colours (set in holdings.js). */
+:root {
+  --bg: #EEF2F6; --panel: #FFFFFF; --field: #F4F6F9; --ink: #14213D; --muted: #56627A; --line: #D9E0E8;
+  --up: #0F7B4D; --down: #C7362F; --div: #9A5B00; --action: #14213D; --action-ink: #FFFFFF; --tag: #4548B8;
+  --shadow: 0 6px 24px rgba(20, 33, 61, 0.14);
+  --font: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif; /* same font as Steve's site */
+  --gutter: 16px;
+  --spring: cubic-bezier(0.34, 1.4, 0.5, 1);   /* small overshoot, for things that land */
+  --glide: cubic-bezier(0.22, 1, 0.36, 1);     /* fast start, soft stop, for things that move */
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0E1626; --panel: #172238; --field: #1E2B45; --ink: #EDF1F7; --muted: #A3AEC2; --line: #2A3854;
+    --up: #3FCF8E; --down: #FF7B72; --div: #F2B84B; --action: #EDF1F7; --action-ink: #0E1626; --tag: #A9ABFF;
+    --shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0E1626; --panel: #172238; --field: #1E2B45; --ink: #EDF1F7; --muted: #A3AEC2; --line: #2A3854;
+  --up: #3FCF8E; --down: #FF7B72; --div: #F2B84B; --action: #EDF1F7; --action-ink: #0E1626; --tag: #A9ABFF;
+  --shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+  color-scheme: dark;
+}
+@media (max-width: 420px) { :root { --gutter: 12px; } }

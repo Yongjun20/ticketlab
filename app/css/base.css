@@ -1,0 +1,51 @@
+/* Page basics: reset, layout, the sideways page sheet, headings, empty states. */
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html { overflow-x: hidden; overscroll-behavior-y: contain; } /* no sideways drift; no browser pull-to-reload fighting ours */
+html.sheet-open { overflow: hidden; }                         /* page stays still behind an open sheet */
+body {
+  background: var(--bg); color: var(--ink); font: 400 15px/1.4 var(--font);
+  font-variant-numeric: tabular-nums; overflow-x: hidden; -webkit-text-size-adjust: 100%; text-size-adjust: 100%;
+}
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid var(--action); outline-offset: 2px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.booting { padding: 40vh 20px 0; text-align: center; color: var(--muted); }
+
+.app {
+  max-width: 540px; margin: 0 auto; padding-inline: var(--gutter);
+  padding-block: calc(16px + env(safe-area-inset-top, 0px)) calc(120px + env(safe-area-inset-bottom, 0px));
+}
+
+/* Pages sit side by side on one sheet; swiping or tapping a tab slides it */
+.pager { overflow: hidden; margin-inline: calc(-1 * var(--gutter)); }
+.track { display: flex; align-items: stretch; touch-action: pan-y; }
+.page { flex: 0 0 100%; min-width: 0; padding-inline: var(--gutter); display: grid; gap: 10px; align-content: start;
+  position: relative; background: var(--bg); will-change: transform; contain: layout style;
+  box-shadow: -14px 0 30px rgba(20, 33, 61, calc(var(--edge, 0) * 0.16)); }   /* soft shadow on the edge of the page sliding over */
+.page::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: #000; opacity: calc(var(--dim, 0) * 0.16); } /* the page underneath dims */
+.page.settling { transition: transform 0.45s var(--glide); }
+.page.settling::after { transition: opacity 0.45s var(--glide); }
+.page.off { height: 0; overflow: hidden; visibility: hidden; } /* the page you're not on takes no space */
+
+/* Text */
+.page-title { font-size: 22px; font-weight: 700; margin: 4px 4px 0; }
+.section-title { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin: 14px 4px 0; }
+.hint { color: var(--muted); font-size: 11px; margin: 0 4px; }
+.note { color: var(--muted); font-size: 13px; padding: 12px 14px; }
+.label, .field > label { font-weight: 600; font-size: 12px; color: var(--muted); }
+:root .up { color: var(--up); } :root .down { color: var(--down); } :root .div { color: var(--div); } /* win over grey text */
+
+/* Empty states */
+.empty { text-align: center; padding: 56px 20px; display: grid; gap: 12px; justify-items: center; }
+.empty h2 { font-size: 18px; }
+.empty p { color: var(--muted); max-width: 30ch; font-size: 13px; }
+.empty-coin {
+  width: 72px; height: 72px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 20px;
+  color: var(--div); background: color-mix(in srgb, var(--div) 14%, var(--panel)); border: 2px dashed color-mix(in srgb, var(--div) 50%, transparent);
+}
+
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.btn { min-height: 44px; padding: 0 18px; border-radius: 12px; border: 1px solid var(--line); background: var(--field); font-weight: 700; font-size: 14px; }
+.btn.dark { background: var(--action); color: var(--action-ink); border-color: var(--action); }
+.text-btn { min-height: 40px; padding: 0 14px; border: 0; background: none; color: var(--ink); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }

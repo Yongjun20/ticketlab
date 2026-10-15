@@ -1,0 +1,94 @@
+/* Motion. Every animation answers something you did (opened, saved, deleted, swiped, refreshed)
+   or shows a change (prices rolling). Turned off by the phone's Reduce Motion setting at the bottom. */
+
+/* Rolling digits: each digit rolls, a short green/red wash shows which way the total moved */
+.odo-roll { transition: transform 0.9s var(--glide); }
+.odo-up, .odo-down { border-radius: 6px; animation: 1s ease-out both; }
+.odo-up { animation-name: wash-up; }
+.odo-down { animation-name: wash-down; }
+@keyframes wash-up { from { background: color-mix(in srgb, var(--up) 24%, transparent); } to { background: transparent; } }
+@keyframes wash-down { from { background: color-mix(in srgb, var(--down) 24%, transparent); } to { background: transparent; } }
+
+/* Opening the app: the total card rises in, the ring slices draw themselves, the legend follows */
+.total-card { animation: rise 0.5s var(--glide) both; }
+.ring-arc { animation: ring-draw 0.9s var(--glide) both; }
+.legend li { animation: slide-in 0.45s var(--glide) both; }
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } }
+@keyframes ring-draw { from { stroke-dasharray: 0 214; } }
+@keyframes slide-in { from { opacity: 0; transform: translateX(-8px); } }
+
+/* Spinners */
+.tc-refresh.spinning svg, .ptr-icon.spin { animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Ring centre swaps when you tap a slice */
+.swap-enter-active, .swap-leave-active { transition: opacity 0.18s, transform 0.25s var(--spring); transform-origin: 44px 50px; }
+.swap-enter-from, .swap-leave-to { opacity: 0; transform: scale(0.85); }
+
+/* Small things that appear: gain pill, "You pay …" line */
+.pop-enter-active { transition: opacity 0.25s, transform 0.4s var(--spring); }
+.pop-leave-active { transition: opacity 0.15s; }
+.pop-enter-from { opacity: 0; transform: scale(0.9) translateY(4px); }
+.pop-leave-to { opacity: 0; }
+
+/* Stock cards slide to their new order when values change */
+.list-move { transition: transform 0.5s var(--glide); }
+.list-enter-active { transition: opacity 0.35s, transform 0.45s var(--glide); }
+.list-leave-active { transition: opacity 0.2s; }
+.list-enter-from { opacity: 0; transform: translateY(12px); }
+.list-leave-to { opacity: 0; }
+
+/* History: a deleted trade slides away and the gap closes; the rest move up */
+.trade-move { transition: transform 0.4s var(--glide); }
+.trade-enter-active { transition: opacity 0.35s, transform 0.45s var(--spring); }
+.trade-enter-from { opacity: 0; transform: scale(0.96); }
+.trade-leave-active { transition: opacity 0.3s, transform 0.35s ease-in, max-height 0.35s 0.1s ease, padding 0.35s 0.1s ease, margin 0.35s 0.1s ease, border-width 0.35s 0.1s; max-height: 220px; overflow: hidden; }
+.trade-leave-to { opacity: 0; transform: translateX(-60px); max-height: 0; padding-block: 0; margin-block: -4px; border-width: 0; }
+
+/* The trade you just saved glows */
+.log-item.glow { animation: glow 1.8s ease-out; }
+@keyframes glow {
+  0%, 30% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--up) 45%, transparent); background: color-mix(in srgb, var(--up) 7%, var(--panel)); }
+  100% { box-shadow: 0 0 0 0 transparent; background: var(--panel); }
+}
+
+/* Search results cascade in */
+.cascade-enter-active { transition: opacity 0.25s, transform 0.35s var(--glide); }
+.cascade-enter-from { opacity: 0; transform: translateY(6px); }
+
+/* Error shakes once */
+.shake-enter-active { animation: shake 0.4s; }
+@keyframes shake { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+
+/* Sheets: backdrop fades, panel springs up, drops away fast */
+.fade-enter-active, .fade-leave-active { transition: opacity 0.3s; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+.sheet-enter-active { transition: transform 0.5s var(--glide); }
+.sheet-leave-active { transition: transform 0.25s ease-in; }
+.sheet-enter-from, .sheet-leave-to { transform: translateY(105%); }
+@media (min-width: 600px) {
+  .sheet-enter-from, .sheet-leave-to { transform: translateY(40px) scale(0.96); opacity: 0; }
+  .sheet-enter-active, .sheet-leave-active { transition: transform 0.35s var(--spring), opacity 0.2s; }
+}
+.save.done .tick { animation: tick 0.4s var(--spring); }
+@keyframes tick { from { transform: scale(0) rotate(-30deg); } }
+
+/* + menu buttons pop up one after another, drop away together */
+.dial-enter-active { transition: opacity 0.25s, transform 0.42s var(--spring); }
+.dial-leave-active { transition: opacity 0.15s, transform 0.15s; transition-delay: 0s !important; }
+.dial-enter-from { opacity: 0; transform: translateY(16px) scale(0.8); }
+.dial-leave-to { opacity: 0; transform: translateY(8px) scale(0.9); }
+
+/* Toasts pop up from above the tab bar */
+.toast-enter-active { transition: opacity 0.25s, transform 0.4s var(--spring); }
+.toast-leave-active { transition: opacity 0.25s, transform 0.25s; }
+.toast-enter-from { opacity: 0; transform: translateY(16px) scale(0.9); }
+.toast-leave-to { opacity: 0; transform: translateY(-6px); }
+
+/* Reduce Motion: everything still works, nothing moves */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important; animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important; transition-delay: 0s !important;
+  }
+}
