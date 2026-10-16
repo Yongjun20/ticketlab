@@ -32,4 +32,14 @@ export async function getNews(symbol) {
   return list;
 }
 
+// Market news from the worker's RSS feeds
+export const getFeed = () => fetch(`${WORKER_URL}/feed`).then(r => (r.ok ? r.json() : Promise.reject()));
+
+// The market numbers for the News tab's Summary: Brent oil, US 10-year yield, S&P 500, Nasdaq, VIX, KLCI, gold, USD/MYR
+export const MARKET_SYMBOLS = ['BZ=F', '^TNX', '^GSPC', '^IXIC', '^VIX', '^KLSE', 'GC=F', 'MYR=X'];
+export const getMarkets = () => fetch(`${WORKER_URL}/price?symbols=${encodeURIComponent(MARKET_SYMBOLS.join(','))}`).then(r => (r.ok ? r.json() : Promise.reject()));
+
+// Past dividends + calendar dates for the stocks you hold
+export const getDividends = symbols => fetch(`${WORKER_URL}/dividends?symbols=${encodeURIComponent(symbols.join(','))}`).then(r => (r.ok ? r.json() : Promise.reject()));
+
 export const searchStocks = q => fetch(`${WORKER_URL}/search?q=${encodeURIComponent(q)}`).then(r => r.json());

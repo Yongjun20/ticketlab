@@ -21,11 +21,10 @@ button { cursor: pointer; }
 .pager { overflow: hidden; margin-inline: calc(-1 * var(--gutter)); }
 .track { display: flex; align-items: stretch; touch-action: pan-y; }
 .page { flex: 0 0 100%; min-width: 0; padding-inline: var(--gutter); display: grid; gap: 10px; align-content: start;
-  position: relative; background: var(--bg); will-change: transform; contain: layout style;
-  box-shadow: -14px 0 30px rgba(20, 33, 61, calc(var(--edge, 0) * 0.16)); }   /* soft shadow on the edge of the page sliding over */
-.page::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: #000; opacity: calc(var(--dim, 0) * 0.16); } /* the page underneath dims */
-.page.settling { transition: transform 0.45s var(--glide); }
-.page.settling::after { transition: opacity 0.45s var(--glide); }
+  position: relative; background: var(--bg); will-change: transform; contain: layout style; }
+.page-dim { position: absolute; inset: 0; z-index: 5; pointer-events: none; background: #000; opacity: 0; } /* the page underneath dims (set directly from the Pager) */
+.page.settling { transition: transform 0.45s var(--glide), box-shadow 0.45s; }
+.page.settling .page-dim { transition: opacity 0.45s var(--glide); }
 .page.off { height: 0; overflow: hidden; visibility: hidden; } /* the page you're not on takes no space */
 
 /* Text */

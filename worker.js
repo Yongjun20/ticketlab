@@ -13,6 +13,13 @@
 //           "price": 120.5, "currency": "USD", "changePct": 1.2 }, ... ]
 //   GET /news?symbol=MU
 //     → [ { "title": "…", "publisher": "Reuters", "link": "https://…", "time": 1792054703 }, ... ]   (up to 4, newest first)
+//   GET /feed
+//     → { "items": [ { "title": "…", "link": "https://…", "source": "CNBC", "region": "US", "time": 1792054703 }, ... ],
+//         "failed": ["FMT"] }   (market news from public RSS feeds; "time" is null when a feed gives no date)
+//   GET /dividends?symbols=VOO,1155.KL
+//     → { "VOO": { "history": [ { "ex": 1790000000, "amount": 1.823 }, ... ],   past ex-dividend dates (unix) and amount per share, oldest first
+//                  "calEx": 1792000000 | null,  "calPay": 1793000000 | null },    Yahoo's calendar: an ex-dividend date and a pay date, when it has them
+//         "AAPL": null }
 //
 // Symbols Yahoo doesn't know are left out of the answer, so the page treats them as "no price".
 
@@ -25,6 +32,17 @@ const SEARCH = 'https://query1.finance.yahoo.com/v1/finance/search';
 const SEARCH_TYPES = new Set(['EQUITY', 'ETF', 'CRYPTOCURRENCY']); // skip futures, funds, indexes
 const SEARCH_LIMIT = 8;
 const NEWS_LIMIT = 4;
+
+// Public RSS feeds (lists of the latest headlines that the sites publish on purpose): Malaysian news and US stock news only
+const FEEDS = [
+  { source: 'Bernama', region: 'MY', url: 'https://www.bernama.com/en/rssfeed.php', stripCategory: true },
+  { source: 'Malay Mail', region: 'MY', url: 'https://www.malaymail.com/feed/rss/money' },
+  { source: 'FMT', region: 'MY', url: 'https://www.freemalaysiatoday.com/category/business/feed' },
+  { source: 'CNBC', region: 'US', url: 'https://www.cnbc.com/id/100003114/device/rss/rss.html' },
+  { source: 'MarketWatch', region: 'US', url: 'https://feeds.content.dowjones.io/public/rss/mw_topstories' },
+];
+const PER_FEED = 30;
+const DIV_MAX_SYMBOLS = 20; // each symbol costs two outgoing requests; the free plan allows 50 per call
 
 const round = (v, dp = 4) => Math.round(v * 10 ** dp) / 10 ** dp;
 
@@ -96,6 +114,83 @@ async function news(symbol) {
     .map(n => ({ title: n.title, publisher: n.publisher || '', link: n.link, time: n.providerPublishTime }));
 }
 
+// RSS text → [{ title, link, time }]. Plain text matching is enough for RSS; no XML library needed.
+const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+const decode = s => s
+  .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+  .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+  .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(+d))
+  .replace(/&([a-z]+);/gi, (m, n) => ENTITIES[n.toLowerCase()] ?? m);
+const field = (xml, tag) => xml.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, 'i'))?.[1];
+
+export function parseFeed(text, { stripCategory = false } = {}) {
+  const out = [];
+  for (const item of text.match(/<item[\s>][\s\S]*?<\/item>/gi) || []) {
+    let title = decode(field(item, 'title') || '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+    if (stripCategory) title = title.replace(/^[A-Za-z &]+ : /, ''); // Bernama starts titles with "General : "
+    const link = decode(field(item, 'link') || '').trim();
+    const when = Date.parse(decode(field(item, 'pubDate') || field(item, 'dc:date') || ''));
+    if (title && /^https?:\/\//.test(link)) out.push({ title, link, time: Number.isFinite(when) ? Math.round(when / 1000) : null });
+  }
+  return out;
+}
+
+// Every feed at once; a feed that is down is skipped and named in "failed"
+async function feed() {
+  const results = await Promise.all(FEEDS.map(async f => {
+    try {
+      const res = await fetch(f.url, { headers: { 'User-Agent': 'Mozilla/5.0' }, cf: { cacheTtl: 600, cacheEverything: true } });
+      if (!res.ok) return null;
+      return parseFeed(await res.text(), f).slice(0, PER_FEED).map(i => ({ ...i, source: f.source, region: f.region }));
+    } catch {
+      return null;
+    }
+  }));
+  return { items: results.flat().filter(Boolean), failed: FEEDS.filter((_, i) => !results[i]).map(f => f.source) };
+}
+
+// Yahoo's calendar needs a cookie + "crumb". Fetch them once and keep them for an hour.
+let session = null;
+async function yahooSession(force = false) {
+  if (!force && session && Date.now() - session.at < 3600 * 1000) return session;
+  const r0 = await fetch('https://fc.yahoo.com', { headers: { 'User-Agent': 'Mozilla/5.0' }, redirect: 'manual' });
+  const cookies = r0.headers.getSetCookie?.() ?? [r0.headers.get('set-cookie')].filter(Boolean);
+  const cookie = cookies.map(c => c.split(';')[0]).join('; ');
+  const crumb = await (await fetch('https://query1.finance.yahoo.com/v1/test/getcrumb', { headers: { 'User-Agent': 'Mozilla/5.0', Cookie: cookie } })).text();
+  if (!crumb || crumb.length > 40 || /</.test(crumb)) throw new Error('no crumb');
+  return (session = { cookie, crumb, at: Date.now() });
+}
+
+// Next ex-dividend date and pay date from Yahoo's calendar (many stocks and funds have none)
+async function calendar(symbol, retry = true) {
+  const sess = await yahooSession();
+  const res = await fetch(`https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=calendarEvents&crumb=${encodeURIComponent(sess.crumb)}`,
+    { headers: { 'User-Agent': 'Mozilla/5.0', Cookie: sess.cookie } });
+  if (res.status === 401 && retry) { await yahooSession(true); return calendar(symbol, false); } // crumb expired
+  if (!res.ok) return {};
+  const ce = (await res.json()).quoteSummary?.result?.[0]?.calendarEvents;
+  return { calEx: ce?.exDividendDate?.raw ?? null, calPay: ce?.dividendDate?.raw ?? null };
+}
+
+async function dividendsFor(symbol) {
+  try {
+    const res = await fetch(`${YAHOO}${encodeURIComponent(symbol)}?range=3y&interval=3mo&events=div`, {
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+      cf: { cacheTtl: 6 * 3600, cacheEverything: true }, // dividends change rarely
+    });
+    if (!res.ok) return null;
+    const result = (await res.json()).chart?.result?.[0];
+    const scale = result?.meta?.currency === 'GBp' ? 100 : 1; // London prices are in pence
+    const history = Object.values(result?.events?.dividends ?? {})
+      .sort((a, b) => a.date - b.date).slice(-12)
+      .map(d => ({ ex: d.date, amount: round(d.amount / scale, 6) }));
+    const cal = await calendar(symbol).catch(() => ({})); // no calendar? the history is still useful
+    return { history, calEx: cal.calEx ?? null, calPay: cal.calPay ?? null };
+  } catch {
+    return null;
+  }
+}
+
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -144,6 +239,19 @@ export default {
       try { return json(await news(symbol)); } catch { return json([]); }
     }
 
-    return json({ error: 'Unknown path.', routes: ['/price?symbols=AAPL,1155.KL', '/rate', '/search?q=micron', '/news?symbol=MU'] }, 404);
+    if (url.pathname === '/dividends') {
+      const symbols = [...new Set(
+        (url.searchParams.get('symbols') || '').toUpperCase().split(',').map(s => s.trim()).filter(s => SYMBOL_RE.test(s)),
+      )].slice(0, DIV_MAX_SYMBOLS);
+      if (!symbols.length) return json({ error: 'Add symbols, for example /dividends?symbols=VOO,1155.KL' }, 400);
+      const list = await Promise.all(symbols.map(dividendsFor));
+      return json(Object.fromEntries(symbols.map((s, i) => [s, list[i]])));
+    }
+
+    if (url.pathname === '/feed') {
+      try { return json(await feed()); } catch { return json({ items: [], failed: FEEDS.map(f => f.source) }); }
+    }
+
+    return json({ error: 'Unknown path.', routes: ['/price?symbols=AAPL,1155.KL', '/rate', '/search?q=micron', '/news?symbol=MU', '/feed', '/dividends?symbols=VOO'] }, 404);
   },
 };

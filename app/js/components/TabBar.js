@@ -1,6 +1,7 @@
 // Floating capsule with Stocks | History (the pill slides, and follows your thumb while you swipe)
 // plus a round + button. Tapping + opens a small menu that pops up above it: Bought, Sold, Dividend, Import CSV, Export CSV.
 import { ref, watch, onBeforeUnmount } from '../vendor/vue.esm-browser.prod.js';
+import DialMenu from './DialMenu.js';
 import { state, pagerApi, openSheet, importFile, exportCSV } from '../store.js';
 
 // Bubbles fan out around the +, starting straight above it and sweeping round to the left (they pop out in this order)
@@ -14,6 +15,7 @@ const ITEMS = [
 
 export default {
   name: 'TabBar',
+  components: { DialMenu },
   template: `
     <Transition name="fade"><div v-if="menu" class="menu-backdrop" @click="menu = false"></div></Transition>
     <div class="dock">
@@ -30,34 +32,17 @@ export default {
       </button>
     </div>
 
-    <div class="dial" :class="{ open: menu }" role="menu" aria-label="Add or import trades">
-      <button v-for="(it, i) in items" :key="it.key" type="button" class="dial-item" :class="{ left: START + i * STEP >= 120 }" role="menuitem" :tabindex="menu ? 0 : -1" :aria-hidden="!menu"
-        :style="spot(i)" @click="choose(it.key)">
-        <span class="dial-circle" :class="'dial-' + it.key">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" v-html="it.icon"></svg>
-        </span>
-        <span class="dial-label">{{ it.label }}</span>
-      </button>
-    </div>
+    <DialMenu :open="menu" :items="items" @pick="choose"/>
     <input ref="file" type="file" class="sr-only" accept=".csv,.txt,.xlsx,.xls,text/csv" tabindex="-1" aria-hidden="true" @change="pickFile">`,
   setup() {
     const tabs = [
       { name: 'Stocks', icon: '<path d="M21 12a9 9 0 1 1-9-9v9z"/><path d="M15 3.5A9 9 0 0 1 20.5 9H15z"/>' },
       { name: 'History', icon: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>' },
+      { name: 'News', icon: '<path d="M5 4h11a2 2 0 0 1 2 2v13a1 1 0 0 0 1 1H7a2 2 0 0 1-2-2z"/><path d="M18 9h2v9a2 2 0 0 1-2 2"/><path d="M9 8h5M9 12h5M9 16h3"/>' },
+      { name: 'Dividends', icon: '<circle cx="12" cy="12" r="9"/><path d="M12 7v10M14.8 9.2c-.5-1-1.5-1.5-2.8-1.5-1.6 0-2.8.8-2.8 2s1.2 1.7 2.8 2 2.8.8 2.8 2-1.2 2-2.8 2c-1.3 0-2.4-.5-2.9-1.6"/>' },
     ];
     const menu = ref(false), file = ref(null);
 
-    // Where bubble i sits: on an arc around the +. Opening pops them out one by one; closing pulls them back in, last one first.
-    const RADIUS = 185, START = 90, STEP = 18; // px, degrees: 90 = straight up, bigger = further round to the left
-    function spot(i) {
-      const a = ((START + i * STEP) * Math.PI) / 180;
-      return {
-        '--dx': Math.round(Math.cos(a) * RADIUS) + 'px',
-        '--dy': Math.round(-Math.sin(a) * RADIUS) + 'px',
-        '--do': i * 55 + 'ms',                        // opening: one by one, nearest the top first
-        '--dc': (ITEMS.length - 1 - i) * 40 + 'ms',    // closing: the last one goes back in first
-      };
-    }
 
     function choose(key) {
       if (key === 'buy' || key === 'sell' || key === 'dividend') openSheet({ action: key });
@@ -76,7 +61,7 @@ export default {
     function down(e) { pid = e.pointerId; sx = lastX = e.clientX; lastT = e.timeStamp; from = state.tab; pos = from; speed = 0; dragging = false; }
     function move(e) {
       if (e.pointerId !== pid) return;
-      const half = e.currentTarget.clientWidth / 2;
+      const half = (e.currentTarget.clientWidth - 8) / tabs.length; // one tab's width
       if (!dragging) {
         if (Math.abs(e.clientX - sx) < 8) return;
         dragging = true;
@@ -92,10 +77,13 @@ export default {
       pid = null;
       if (!dragging) return;
       dragging = false;
+      const nav = e.currentTarget; // keep it: e.currentTarget is empty by the time the timer below runs
       const eat = ev => { ev.stopPropagation(); ev.preventDefault(); }; // the click that ends a drag isn't a tap
-      e.currentTarget.addEventListener('click', eat, { capture: true, once: true });
-      setTimeout(() => e.currentTarget.removeEventListener('click', eat, { capture: true }), 80);
-      pagerApi.drop(Math.abs(speed) > 0.4 ? (speed > 0 ? Math.ceil(pos) : Math.floor(pos)) : Math.round(pos));
+      nav.addEventListener('click', eat, { capture: true, once: true });
+      setTimeout(() => nav.removeEventListener('click', eat, { capture: true }), 80);
+      const near = Math.round(pos);
+      const flick = Math.abs(speed) > 0.4 && Math.abs(pos - near) > 0.15; // a flick carries on to the next tab, unless you stopped right on one
+      pagerApi.drop(flick ? (speed > 0 ? Math.ceil(pos) : Math.floor(pos)) : near);
     }
 
     // Esc closes the menu
@@ -103,6 +91,6 @@ export default {
     watch(menu, open => (open ? document.addEventListener('keydown', onKey) : document.removeEventListener('keydown', onKey)));
     onBeforeUnmount(() => document.removeEventListener('keydown', onKey));
 
-    return { state, tabs, items: ITEMS, menu, file, spot, START, STEP, choose, pickFile, down, move, up };
+    return { state, tabs, items: ITEMS, menu, file, choose, pickFile, down, move, up };
   },
 };

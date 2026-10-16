@@ -16,6 +16,9 @@ A personal stock and dividend tracker for Bursa Malaysia and US stocks. Record y
 - Converts US and other currencies to MYR using live exchange rates.
 - Records dividends you actually received, and shows them next to the estimate.
 - Shows everything in one currency of your choice (pick it with the little icon on the total card), or Mixed to see each stock in its own currency.
+- A **Dividends** tab: for each stock you hold, the next ex-dividend date (marked est. when worked out from past dividends), the pay date when known, the last dividend per share, and what the last dividend would pay on your units.
+- A **News** tab with three views: **Summary** (Brent oil, the US 10-year yield, the S&P 500, plus Nasdaq, VIX, KLCI, gold and USD/MYR), **Stocks** (headlines about the stocks you hold) and **Others** (other Malaysian and US market headlines from Bernama, Malay Mail, FMT, CNBC and MarketWatch). Stocks and Others have a month calendar: pick a day, tap a headline to read it on the original site. Headlines are saved on your phone as the app opens, so earlier days fill in over time.
+- Deleted a trade by mistake? An **Undo** button shows for a few seconds after every delete.
 - Select several trades in History and delete them in one go.
 - Shows the latest news headlines for each stock when you open its card (from Yahoo Finance; some Bursa stocks have none).
 - Searches stocks by name, so you can type "micron" and pick the ticker.
@@ -55,7 +58,7 @@ worker.js     the Cloudflare Worker that fetches prices, rates and stock search
 preview.js    small local server for trying the app on your computer
 ```
 
-Built with Vue 3 (included in `app/js/vendor`), plain CSS, and a Cloudflare Worker that reads Yahoo Finance data (prices, exchange rates, stock search and news).
+Built with Vue 3 (included in `app/js/vendor`), plain CSS, and a Cloudflare Worker that reads Yahoo Finance data (prices, exchange rates, stock search, and news feeds).
 
 ## Disclaimer
 

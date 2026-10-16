@@ -2,7 +2,7 @@
 // deleted trades slide away and the gap closes; a trade you just saved glows.
 import { ref, computed, watch, onBeforeUnmount } from '../vendor/vue.esm-browser.prod.js';
 import SwipeRow from './SwipeRow.js';
-import { state, openSheet, deleteTrade, deleteTrades, cash, exportCSV, importFile, lastExport, toast } from '../store.js';
+import { state, openSheet, deleteWithUndo, cash, exportCSV, importFile, lastExport, toast } from '../store.js';
 import { money, qty, monthName, niceDate, today } from '../lib/format.js';
 import { toMYR } from '../lib/markets.js';
 
@@ -114,10 +114,8 @@ export default {
     const openId = ref(null); // the one card swiped open (only one at a time)
     function edit(t) { openId.value = null; openSheet({ trade: t }); }
     async function remove(t) {
-      if (!confirm('Delete this trade? You can’t undo this.')) return;
       openId.value = null;
-      await deleteTrade(t.id);
-      toast('Trade deleted');
+      await deleteWithUndo([t]);
     }
 
     // Select mode: tap trades to pick them, then delete every picked trade at once
@@ -131,10 +129,9 @@ export default {
     const toggleMonth = g => flip(s => { const all = monthAll(g); g.list.forEach(t => (all ? s.delete(t.id) : s.add(t.id))); });
     function toggleSelecting() { selecting.value = !selecting.value; picked.value = new Set(); openId.value = null; }
     async function removePicked() {
-      const ids = [...picked.value];
-      if (!ids.length || !confirm(`Delete ${ids.length} trade${ids.length === 1 ? '' : 's'}? You can’t undo this.`)) return;
-      await deleteTrades(ids);
-      toast(`Deleted ${ids.length} trade${ids.length === 1 ? '' : 's'}`);
+      const trades = state.txns.filter(t => picked.value.has(t.id));
+      if (!trades.length) return;
+      await deleteWithUndo(trades);
       selecting.value = false; picked.value = new Set();
     }
     watch(() => state.txns.length, n => { if (!n) selecting.value = false; }); // nothing left to select

@@ -13,7 +13,7 @@ export default {
   template: `<div class="pager"><div ref="track" class="track"><slot/></div></div>`,
   setup() {
     const track = ref(null);
-    const saved = [0, 0], lift = [0, 0]; // remembered scroll, and how far to lift a page so it lines up during a slide
+    const saved = Array(8).fill(0), lift = Array(8).fill(0); // per page (room for 8): remembered scroll, and how far to lift a page so it lines up during a slide
     let current = 0, settleTimer, run = 0; // run: which slide is playing (a newer one cancels an older one)
     const pages = () => [...track.value.children];
     const last = () => pages().length - 1;
@@ -27,9 +27,11 @@ export default {
         p.classList.toggle('settling', moving);
         p.style.transform = `translate3d(${x}%, ${lift[i]}px, 0)`;
         p.style.zIndex = String(i + 1);                              // later pages slide over earlier ones
-        p.style.setProperty('--dim', d < 0 ? Math.min(-d, 1) : 0);   // the page underneath darkens
-        p.style.setProperty('--edge', d > 0 && d < 1 ? 1 : 0);       // shadow on the edge of the page sliding over
+        p.firstElementChild.style.opacity = d < 0 ? Math.min(-d, 1) * 0.16 : 0;  // the page underneath darkens (a plain layer: no style recalculation of the page's contents)
+        const shadow = d > 0 && d < 1 ? '-14px 0 30px rgba(20, 33, 61, 0.16)' : ''; // soft shadow on the edge of the page sliding over
+        if (p.style.boxShadow !== shadow) p.style.boxShadow = shadow;
       });
+      document.documentElement.classList.toggle('sliding', moving || pos % 1 !== 0); // CSS freezes other animations while pages move
       state.tabAnimate = moving;
       state.tabPos = Math.min(Math.max(pos, 0), last());
     }
@@ -41,14 +43,17 @@ export default {
       lift[i] = window.scrollY - saved[i];
     }
     function go(i) {
+      const prev = current;
       saved[current] = window.scrollY;
-      if (i !== current) { wake(i); if (navigator.userActivation?.hasBeenActive) navigator.vibrate?.(8); } // tiny buzz on Android after you've touched the app
+      if (i !== current) { for (let j = Math.min(prev, i); j <= Math.max(prev, i); j++) if (j !== prev) wake(j); // the target and every page the slide passes over, so you see them go by
+         if (navigator.userActivation?.hasBeenActive) navigator.vibrate?.(8); } // tiny buzz on Android after you've touched the app
       current = i;
       clearTimeout(settleTimer);
       // First lay out the waking page (the slow part), THEN start the slide, so the slide itself never stalls
       pages()[i].offsetHeight;
       // Tapping a tab slides exactly like a finger drag does (frame by frame), which stays smooth on phones
-      const from = state.tabPos, t0 = performance.now(), ms = 420, me = ++run;
+      // one step takes 0.42s; each extra page adds only 0.07s, so a far jump goes past the pages in between quickly
+      const from = state.tabPos, t0 = performance.now(), ms = Math.round(420 + 70 * Math.max(Math.abs(i - from) - 1, 0)), me = ++run;
       if (calm() || from === i) place(i, false);
       else {
         const step = now => {
@@ -114,7 +119,7 @@ export default {
           if (!dragging) { pointer = null; return; }
           clearTimeout(settleTimer); run++;
           saved[current] = window.scrollY;
-          pages().forEach((_, i) => i !== current && wake(i));
+          [current - 1, current + 1].forEach(i => pages()[i] && wake(i)); // a finger swipe can only reach the next page either way
           try { el.setPointerCapture(e.pointerId); } catch {}
         }
         dx = mx;

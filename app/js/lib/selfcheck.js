@@ -2,6 +2,8 @@
 // Runs when the app opens (problems show in the browser console) and in the Node test.
 import { buildHoldings, summarize } from './holdings.js';
 import { toYahoo, fromYahoo } from './markets.js';
+import { analyse, shortDate, daysUntil, perShare } from './dividends.js';
+import { mergeNews, countByDay, matchStocks, monthCells, dateKey } from './news.js';
 import { parseCSV, parseNum, parseDateCell, guessDateOrder, cleanTicker, detectMapping, rowToTrade, tradesToCSV, tradeKey } from './csv.js';
 
 export function runSelfChecks() {
@@ -24,6 +26,31 @@ export function runSelfChecks() {
     { id: 3, date: '2025-03-01', ticker: 'Z', market: 'MY', action: 'dividend', amount: 12.5 },
   ]);
   ok(d.units === 100 && near(d.cost, 900) && near(d.received, 42.5), 'dividends received');
+
+  // News: merge keeps first-seen times, drops repeats and mistakes in the future, counts per day, spots your stocks, builds the calendar
+  const now = Math.floor(new Date('2026-10-16T12:00:00').getTime() / 1000);
+  const n1 = mergeNews([], [{ title: 'A', link: 'x1', source: 'CNBC', region: 'WORLD', time: now - 3600 }, { title: 'B', link: 'x2', source: 'Bernama', region: 'MY', time: null }, { title: 'C', link: 'x3', source: 'FMT', region: 'MY', time: now + 999999 }], now);
+  const n2 = mergeNews(n1, [{ title: 'A', link: 'x1', time: 5 }, { title: 'D', link: 'x4', source: 'BBC', region: 'US', time: now - 90 * 86400 - 10 }], now);
+  ok(n1.length === 3 && n1[0].time >= n1[1].time && n1.find(n => n.link === 'x2').guess && n1.find(n => n.link === 'x3').time === now, 'news merge');
+  ok(n2.length === 3 && n2.find(n => n.link === 'x1').time === now - 3600, 'news keeps first time, drops repeats and very old');
+  ok(countByDay(n1)[dateKey(now)] === 3, 'news per day');
+  const mine = [{ ticker: 'MU', name: 'Micron Technology, Inc.' }, { ticker: '1295', name: 'Public Bank Berhad' }, { ticker: 'VOO', name: 'Vanguard S&P 500 ETF' }, { ticker: 'QQQM', name: 'Invesco NASDAQ 100 ETF' }];
+  ok(matchStocks('Micron soars on AI demand', mine).join() === 'MU' && !matchStocks('Public holiday announced', mine).length && matchStocks('VOO hits a record', mine).join() === 'VOO', 'news matches ticker and name');
+  ok(matchStocks('Why the S&P 500 fell today', mine).join() === 'VOO' && matchStocks('Nasdaq futures sink premarket', mine).join() === 'QQQM' && !matchStocks('Fed holds rates', mine).length, 'news matches index funds');
+  const t1 = mergeNews([], [{ title: 'Z', link: 'z1', source: 'Yahoo', region: 'STOCK', time: now - 60, tickers: ['VOO'] }], now);
+  const t2 = mergeNews(t1, [{ title: 'Z', link: 'z1', time: now - 60, tickers: ['QQQM'] }, { title: 'Y', link: 'z2', source: 'CNBC', region: 'US', time: now - 120 }], now);
+  ok(t2.length === 2 && t2[0].tickers.join() === 'VOO,QQQM' && t2[1].tickers.length === 0 && t1[0].tickers.join() === 'VOO', 'news remembers which stocks a headline is about');
+  const cal = monthCells(2026, 9); // October 2026 starts on a Thursday: 3 empty cells, 31 days
+  ok(cal.length === 34 && cal[2] === null && cal[3] === '2026-10-01' && cal.at(-1) === '2026-10-31', 'calendar cells');
+
+  // Dividend dates: a quarterly fund gets its next ex-date estimated one gap later; Yahoo's future date wins; a stock that stopped paying gets none
+  const D = s => Math.floor(new Date(s + 'T00:00:00Z').getTime() / 1000), t0 = D('2026-10-16');
+  const q = analyse({ history: [{ ex: D('2026-03-27'), amount: 1.872 }, { ex: D('2025-12-22'), amount: 1.771 }, { ex: D('2026-06-26'), amount: 1.962 }, { ex: D('2026-09-28'), amount: 1.823 }] }, t0);
+  ok(q.freq === 'Quarterly' && q.last.amount === 1.823 && q.next.estimated && shortDate(q.next.ex).endsWith('Dec 2026') && near(q.pastYear, 1.771 + 1.872 + 1.962 + 1.823), 'dividend estimate');
+  const c = analyse({ history: [{ ex: D('2026-03-12'), amount: 0.33 }, { ex: D('2026-09-23'), amount: 0.31 }], calEx: D('2027-03-10'), calPay: D('2027-04-01') }, t0);
+  ok(c.freq === 'Twice a year' && !c.next.estimated && shortDate(c.next.ex) === '10 Mar 2027' && c.pay.past === false, 'dividend calendar date wins');
+  ok(analyse({ history: [{ ex: D('2023-01-05'), amount: 0.1 }, { ex: D('2023-04-05'), amount: 0.1 }] }, t0).next === null && analyse({ history: [] }, t0) === null, 'no estimate once a stock stopped paying');
+  ok(daysUntil(D('2026-10-19'), t0) === 3 && perShare(0.31, 'RM') === 'RM0.310' && perShare(24.5, '$') === '$24.50', 'dividend helpers');
 
   // Fees: buy 100 @ 9 + 10 → cost 910; sell 50 @ 10 + 5 → realised (10 − 9.10) × 50 − 5 = 40
   const [f] = buildHoldings([

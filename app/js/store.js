@@ -1,9 +1,10 @@
 // The app's shared state and actions. Components read `state` and call these functions.
-import { reactive, computed, watch } from './vendor/vue.esm-browser.prod.js';
+import { reactive, computed, watch, markRaw } from './vendor/vue.esm-browser.prod.js';
 import * as db from './lib/db.js';
 import { buildHoldings, summarize } from './lib/holdings.js';
 import { toYahoo, toMYR, RATE_KEY } from './lib/markets.js';
-import { getMarketData, isFresh, keyOf } from './lib/prices.js';
+import { getMarketData, isFresh, keyOf, getFeed, getDividends, getMarkets, getNews } from './lib/prices.js';
+import { mergeNews } from './lib/news.js';
 import { tradesToCSV, parseCSV, findHeaderRow, detectMapping, guessDateOrder, tradeKey } from './lib/csv.js';
 import { today, money } from './lib/format.js';
 
@@ -20,6 +21,12 @@ export const state = reactive({
   importJob: null,   // the file being imported
   toasts: [],
   glowId: null,      // the trade you just saved glows briefly
+  divs: {},          // dividend history per stock, saved on this phone: { 'VOO': { at, history, calEx, calPay } }
+  market: { at: 0, items: {}, loading: false, error: '' }, // oil, yields, indexes for the News tab's Summary
+  news: [],          // headlines saved on this phone (newest first)
+  newsAt: 0,         // when we last asked the worker
+  newsLoading: false,
+  newsError: '',
   currency: '',      // '' = mixed (each stock in its own currency); otherwise a market key like 'MY' or 'US' to show everything in
 });
 
@@ -38,7 +45,17 @@ export async function load() {
   }
   state.ready = true;
   refresh();
+  // News and market numbers can wait: first let the screen draw and the first taps run, then fetch them one after another
+  idle(() => refreshNews().then(() => idle(refreshMarket)));
 }
+
+// Background loading (news, market numbers, dividends) starts when the browser is idle, 2.5 seconds after opening, AND you haven't
+// touched the screen for 1.5 seconds, so a response never arrives in the middle of a swipe.
+let touchedAt = 0;
+if (typeof document !== 'undefined') document.addEventListener('pointerdown', () => { touchedAt = Date.now(); }, { capture: true, passive: true });
+const bootAt = Date.now();
+const whenCalm = (fn, quiet) => (Date.now() - touchedAt < quiet || Date.now() - bootAt < 2500 ? setTimeout(() => whenCalm(fn, quiet), 250) : fn()); // also never in the first 2.5 seconds after opening
+export const idle = (fn, quiet = 1500, wait = 4000) => (window.requestIdleCallback ? requestIdleCallback(() => whenCalm(fn, quiet), { timeout: wait }) : setTimeout(() => whenCalm(fn, quiet), Math.min(wait, 1200))); // quiet: ms the screen must be untouched; wait: the longest to wait for an idle moment
 
 // Prices for the stocks you hold + exchange rates (rates also feed History's month totals)
 export async function refresh(force = false) {
@@ -47,15 +64,80 @@ export async function refresh(force = false) {
   state.loading = true;
   state.live = await getMarketData(symbols, state.live);
   state.loading = false;
+  idle(() => refreshDividends(symbols));
 }
 
-export function toast(msg) {
+// Dividend dates and amounts for the stocks you hold. Asked again after 12 hours, or when you add a new stock.
+export async function refreshDividends(symbols) {
+  const stale = symbols.filter(s => !(state.divs[s] && Date.now() - state.divs[s].at < 12 * 3600 * 1000)).slice(0, 20);
+  if (!stale.length) return;
+  try {
+    const got = await getDividends(stale);
+    const next = { ...state.divs };
+    for (const s of stale) if (got[s]) next[s] = { ...got[s], at: Date.now() };
+    state.divs = next;
+    try { localStorage.setItem('divs', JSON.stringify(next)); } catch {}
+  } catch { /* offline or worker not updated yet: the Dividend dates card just stays empty */ }
+}
+
+// Market news: ask the worker, add what's new to the saved list. Done at most every 10 minutes unless you press refresh.
+export async function refreshNews(force = false) {
+  if (state.newsLoading || (!force && Date.now() - state.newsAt < 10 * 60 * 1000)) return;
+  state.newsLoading = true;
+  // the general feeds, and each of your stocks' own headlines (up to your 8 biggest), at the same time
+  const own = summary.value.open.slice(0, 8);
+  const [feed, ...perStock] = await Promise.allSettled([
+    getFeed(),
+    ...own.map(r => getNews(toYahoo(r.ticker, r.market)).then(list => list.map(n => ({
+      title: n.title, link: n.link, source: n.publisher || 'Yahoo Finance', region: 'STOCK', time: n.time, tickers: [r.ticker],
+    })))),
+  ]);
+  const items = [...(feed.status === 'fulfilled' ? feed.value.items : []), ...perStock.flatMap(p => (p.status === 'fulfilled' ? p.value : []))];
+  if (items.length) { state.news = markRaw(mergeNews(state.news, items)); saveNews(); state.newsAt = Date.now(); }
+  state.newsError = feed.status !== 'fulfilled' ? 'News isn’t available right now. Showing what is saved on this phone.'
+    : !feed.value.items.length ? 'No headlines came back. Try again in a moment.'
+    : feed.value.failed.length ? `Couldn’t reach ${feed.value.failed.join(', ')} just now.` : '';
+  state.newsLoading = false;
+}
+
+// Oil, yields and indexes: asked at most every 5 minutes; the last numbers stay on screen when offline
+export async function refreshMarket(force = false) {
+  const m = state.market;
+  if (m.loading || (!force && Date.now() - m.at < 5 * 60 * 1000)) return;
+  m.loading = true;
+  try {
+    m.items = await getMarkets();
+    m.at = Date.now(); m.error = '';
+    try { localStorage.setItem('market', JSON.stringify({ at: m.at, items: m.items })); } catch {}
+  } catch {
+    m.error = 'Market numbers aren’t available right now.';
+  }
+  m.loading = false;
+}
+function saveNews() {
+  try { localStorage.setItem('news', JSON.stringify(state.news)); } catch {
+    try { state.news = markRaw(state.news.slice(0, 600)); localStorage.setItem('news', JSON.stringify(state.news)); } catch {} // storage full: keep the newest
+  }
+}
+function loadNews() {
+  try {
+    const list = JSON.parse(localStorage.getItem('news') || '[]');
+    return Array.isArray(list) ? list.filter(n => n.source !== 'BBC').map(n => (n.region === 'WORLD' ? { ...n, region: 'US' } : n)) : []; // the first version also had BBC, and called US news "World"
+  } catch { return []; }
+}
+state.news = markRaw(loadNews()); // headlines never change once saved, so Vue doesn't need to watch each one
+try { const saved = JSON.parse(localStorage.getItem('market') || 'null'); if (saved?.items) { state.market.items = saved.items; state.market.at = 0; } } catch {} // shown at once, then updated
+try { state.divs = JSON.parse(localStorage.getItem('divs') || '{}') || {}; } catch { state.divs = {}; }
+
+// A little message above the tab bar. With an action ({ label, run }) it also shows a button and stays a bit longer.
+export function toast(msg, action = null) {
   const id = Math.random();
-  state.toasts.push({ id, msg });
-  setTimeout(() => {
-    const i = state.toasts.findIndex(t => t.id === id);
-    if (i >= 0) state.toasts.splice(i, 1);
-  }, 2400);
+  state.toasts.push({ id, msg, action });
+  setTimeout(() => dismissToast(id), action ? 6000 : 2400);
+}
+export function dismissToast(id) {
+  const i = state.toasts.findIndex(t => t.id === id);
+  if (i >= 0) state.toasts.splice(i, 1);
 }
 
 function glow(id) {
@@ -82,6 +164,22 @@ export async function deleteTrades(ids) {
   for (const id of ids) await db.del(id);
   const gone = new Set(ids);
   state.txns = state.txns.filter(t => !gone.has(t.id));
+}
+
+// Delete trades, and offer "Undo" for a few seconds: undo puts back exactly the same records
+export async function deleteWithUndo(trades) {
+  const saved = trades.map(t => JSON.parse(JSON.stringify(t)));
+  await deleteTrades(saved.map(t => t.id));
+  const n = saved.length, s = n === 1 ? '' : 's';
+  toast(`Deleted ${n} trade${s}`, {
+    label: 'Undo',
+    run: async () => {
+      for (const t of saved) await db.put(t); // same id, so it lands exactly where it was
+      state.txns = await db.all();
+      refresh();
+      toast(`Restored ${n} trade${s}`);
+    },
+  });
 }
 
 export async function importTrades(list) {
