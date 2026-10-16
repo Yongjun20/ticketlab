@@ -97,6 +97,14 @@
 .stock.open .stock-more { grid-template-rows: 1fr; }
 .stock-more-inner { min-height: 0; overflow: hidden; opacity: 0; transition: opacity 0.2s; }
 .stock.open .stock-more-inner { opacity: 1; transition: opacity 0.3s 0.08s; }
+.news { padding: 8px 14px 0; border-top: 1px solid var(--line); margin-top: 8px; }
+.news h3 { font-size: 11px; font-weight: 600; color: var(--muted); }
+.news-note { color: var(--muted); font-size: 12px; padding: 6px 0 2px; }
+.news ul { list-style: none; margin: 0; padding: 0; display: grid; }
+.news li + li { border-top: 1px solid var(--line); }
+.news a { display: grid; gap: 2px; padding: 8px 0; color: inherit; text-decoration: none; }
+.news-title { font-size: 13px; font-weight: 600; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.news small { color: var(--muted); font-size: 11px; }
 .detail { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; padding: 12px 14px 4px; border-top: 1px solid var(--line); }
 .detail dt { color: var(--muted); font-size: 11px; }
 .detail dd { font-weight: 600; font-size: 13px; }
@@ -175,12 +183,19 @@
 .add svg { width: 26px; height: 26px; transition: transform 0.35s var(--spring); }
 .add:active { transform: scale(0.9); }
 .add.open svg { transform: rotate(45deg); } /* + turns into × while the menu is open */
-/* + menu: round buttons pop up above the + (nearest first), page dims behind */
+/* + menu: round bubbles pop out on an arc around the + (one by one), and fly back into it when closed. Page dims behind. */
 .menu-backdrop { position: fixed; inset: 0; z-index: 9; background: rgba(14, 22, 38, 0.35); }
-.dial { position: fixed; z-index: 12; left: 0; right: 0; margin-inline: auto; width: 100%; max-width: 540px; padding-inline: var(--gutter);
-  bottom: calc(12px + 56px + 16px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column-reverse; align-items: flex-end; gap: 12px; pointer-events: none; }
-.dial-item { pointer-events: auto; display: flex; align-items: center; gap: 10px; margin-right: 4px; padding: 0; border: 0; background: none; } /* 4px lines the 48px circles up with the 56px + */
-.dial-label { background: var(--panel); color: var(--ink); font-size: 13px; font-weight: 700; padding: 7px 12px; border-radius: 10px; box-shadow: var(--shadow); }
+.dial { position: fixed; z-index: 12; width: 56px; height: 56px; pointer-events: none; /* sits exactly on top of the + */
+  right: calc(max(0px, (100vw - 540px) / 2) + var(--gutter)); bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
+.dial-item { position: absolute; left: 4px; top: 4px; /* 4px centres a 48px bubble on the 56px + */ width: 48px; padding: 0; border: 0; background: none; display: grid; justify-items: center;
+  transform: translate(0, 0) scale(0.2); opacity: 0; visibility: hidden; pointer-events: none;
+  /* closing: glide back into the + (no bounce), stay visible until they arrive, then hide */
+  transition: transform 0.38s cubic-bezier(0.5, 0, 0.75, 0.2) var(--dc), opacity 0.1s linear calc(var(--dc) + 0.3s), visibility 0s linear calc(var(--dc) + 0.42s); }
+.dial.open .dial-item { transform: translate(var(--dx), var(--dy)) scale(1); opacity: 1; visibility: visible; pointer-events: auto;
+  transition: transform 0.55s var(--spring) var(--do), opacity 0.2s linear var(--do), visibility 0s linear var(--do); }
+.dial-label { position: absolute; top: 100%; margin-top: 4px; background: var(--panel); color: var(--ink); font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 8px;
+  box-shadow: var(--shadow); white-space: nowrap; }
+.dial-item.left .dial-label { top: 50%; right: 100%; margin: 0 6px 0 0; transform: translateY(-50%); } /* bubbles round the left side: label beside, not below */
 .dial-circle { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; color: #FFFFFF; box-shadow: var(--shadow); transition: transform 0.2s var(--spring); }
 .dial-circle svg { width: 22px; height: 22px; }
 .dial-buy { background: #0F7B4D; }   /* white icon 5.4:1 */
@@ -288,3 +303,44 @@ select.input { padding-right: 34px; background-image: linear-gradient(45deg, tra
   .ring { width: 76px; height: 76px; }
   .sheet-body { padding-inline: 16px; }
 }
+
+/* History: Select mode (tick circles, and a bar above the tab bar to delete the ticked trades) */
+.title-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.title-row .page-title { margin-right: 0; }
+.select-btn { margin-right: 4px; font-weight: 700; }
+.month-pick { font-size: 12px; margin-left: auto; font-weight: 600; }
+.log-item.selecting { grid-template-columns: auto minmax(0, 1fr) auto; }
+.pick { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--line); display: grid; place-items: center; color: transparent; background: var(--panel);
+  transition: background 0.2s, border-color 0.2s, color 0.2s, transform 0.3s var(--spring); }
+.pick svg { width: 14px; height: 14px; }
+.log-item.picked { border-color: var(--action); background: color-mix(in srgb, var(--action) 5%, var(--panel)); }
+.log-item.picked .pick { background: var(--action); border-color: var(--action); color: var(--action-ink); transform: scale(1.08); }
+.select-bar { position: fixed; z-index: 11; left: 0; right: 0; margin-inline: auto; width: calc(100% - 2 * var(--gutter)); max-width: calc(540px - 2 * var(--gutter));
+  bottom: calc(88px + env(safe-area-inset-bottom, 0px)); display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 16px;
+  border-radius: 20px; background: var(--panel); border: 1px solid var(--line); box-shadow: var(--shadow); }
+.select-count { flex: 1; font-size: 13px; font-weight: 700; }
+.select-del { min-height: 40px; display: inline-flex; align-items: center; gap: 6px; padding: 0 16px; border: 0; border-radius: 14px; background: var(--down); color: #FFFFFF;
+  font-weight: 700; font-size: 14px; transition: opacity 0.2s, transform 0.2s var(--spring); }
+.select-del:disabled { opacity: 0.35; }
+.select-del:not(:disabled):active { transform: scale(0.95); }
+.select-del svg { width: 16px; height: 16px; }
+.select-btn, .month-pick, .select-bar .text-btn { text-decoration: none; min-height: 32px; padding: 0 8px; color: var(--action); }
+.select-btn { display: inline-grid; place-items: center; min-width: 40px; min-height: 40px; margin-right: 0; }
+.select-btn svg { width: 26px; height: 26px; }
+.select-btn.done { padding: 0 12px; }
+.select-btn.done { min-height: 38px; padding: 0 18px; border: 1px solid var(--line); border-radius: 19px; background: var(--panel); box-shadow: var(--shadow); color: var(--ink); }
+
+/* Currency picker in the total card's top row: one cute icon, tap for a small menu */
+.tc-tools { display: flex; align-items: center; gap: 8px; }
+.tc-cur { position: relative; }
+.tc-cur-btn { width: 44px; height: 36px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 18px; background: var(--field); transition: transform 0.2s var(--spring); }
+.tc-cur-btn:active { transform: scale(0.92); }
+.cur-icon { display: inline-grid; width: 30px; height: 22px; }
+.cur-icon svg { width: 100%; height: 100%; display: block; }
+.tc-cur-menu { position: absolute; z-index: 5; top: 42px; right: -52px; margin: 0; padding: 6px; list-style: none; min-width: 150px; display: grid; gap: 2px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow); transform-origin: top right; }
+.cur-opt { width: 100%; min-height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border: 0; border-radius: 12px; background: none; font-size: 14px; font-weight: 700; color: var(--ink); text-align: left; }
+.cur-opt.on { background: var(--field); }
+.cur-opt:active { transform: scale(0.97); }
+.cur-name { flex: 1; }
+.cur-tick { width: 16px; height: 16px; color: var(--up); }

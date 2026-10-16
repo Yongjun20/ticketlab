@@ -11,6 +11,8 @@
 //   GET /search?q=micron
 //     → [ { "symbol": "MU", "name": "Micron Technology, Inc.", "exchange": "NMS", "type": "EQUITY",
 //           "price": 120.5, "currency": "USD", "changePct": 1.2 }, ... ]
+//   GET /news?symbol=MU
+//     → [ { "title": "…", "publisher": "Reuters", "link": "https://…", "time": 1792054703 }, ... ]   (up to 4, newest first)
 //
 // Symbols Yahoo doesn't know are left out of the answer, so the page treats them as "no price".
 
@@ -22,6 +24,7 @@ const YEAR_SECONDS = 365 * 24 * 60 * 60;
 const SEARCH = 'https://query1.finance.yahoo.com/v1/finance/search';
 const SEARCH_TYPES = new Set(['EQUITY', 'ETF', 'CRYPTOCURRENCY']); // skip futures, funds, indexes
 const SEARCH_LIMIT = 8;
+const NEWS_LIMIT = 4;
 
 const round = (v, dp = 4) => Math.round(v * 10 ** dp) / 10 ** dp;
 
@@ -79,6 +82,20 @@ async function search(q) {
   }));
 }
 
+// Latest headlines that Yahoo says are about this symbol
+async function news(symbol) {
+  const res = await fetch(`${SEARCH}?q=${encodeURIComponent(symbol)}&quotesCount=0&newsCount=12&listsCount=0`, {
+    headers: { 'User-Agent': 'Mozilla/5.0' },
+    cf: { cacheTtl: 600, cacheEverything: true }, // news: reuse for 10 minutes
+  });
+  if (!res.ok) return [];
+  return ((await res.json()).news || [])
+    .filter(n => n.title && /^https:\/\//.test(n.link || '') && (n.relatedTickers || []).includes(symbol))
+    .sort((a, b) => b.providerPublishTime - a.providerPublishTime)
+    .slice(0, NEWS_LIMIT)
+    .map(n => ({ title: n.title, publisher: n.publisher || '', link: n.link, time: n.providerPublishTime }));
+}
+
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -121,6 +138,12 @@ export default {
       try { return json(await search(q)); } catch { return json([]); }
     }
 
-    return json({ error: 'Unknown path.', routes: ['/price?symbols=AAPL,1155.KL', '/rate', '/search?q=micron'] }, 404);
+    if (url.pathname === '/news') {
+      const symbol = (url.searchParams.get('symbol') || '').toUpperCase().trim();
+      if (!SYMBOL_RE.test(symbol)) return json({ error: 'Add a symbol, for example /news?symbol=MU' }, 400);
+      try { return json(await news(symbol)); } catch { return json([]); }
+    }
+
+    return json({ error: 'Unknown path.', routes: ['/price?symbols=AAPL,1155.KL', '/rate', '/search?q=micron', '/news?symbol=MU'] }, 404);
   },
 };

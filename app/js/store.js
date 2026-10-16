@@ -1,11 +1,11 @@
 // The app's shared state and actions. Components read `state` and call these functions.
-import { reactive, computed } from './vendor/vue.esm-browser.prod.js';
+import { reactive, computed, watch } from './vendor/vue.esm-browser.prod.js';
 import * as db from './lib/db.js';
 import { buildHoldings, summarize } from './lib/holdings.js';
-import { toYahoo } from './lib/markets.js';
+import { toYahoo, toMYR, RATE_KEY } from './lib/markets.js';
 import { getMarketData, isFresh, keyOf } from './lib/prices.js';
 import { tradesToCSV, parseCSV, findHeaderRow, detectMapping, guessDateOrder, tradeKey } from './lib/csv.js';
-import { today } from './lib/format.js';
+import { today, money } from './lib/format.js';
 
 export const state = reactive({
   ready: false,
@@ -20,6 +20,7 @@ export const state = reactive({
   importJob: null,   // the file being imported
   toasts: [],
   glowId: null,      // the trade you just saved glows briefly
+  currency: '',      // '' = mixed (each stock in its own currency); otherwise a market key like 'MY' or 'US' to show everything in
 });
 
 // Pager registers these so the tab bar can drag the pages along with the pill
@@ -76,6 +77,13 @@ export async function deleteTrade(id) {
   state.txns = state.txns.filter(t => t.id !== id);
 }
 
+// Delete several trades in one go (History's Select mode)
+export async function deleteTrades(ids) {
+  for (const id of ids) await db.del(id);
+  const gone = new Set(ids);
+  state.txns = state.txns.filter(t => !gone.has(t.id));
+}
+
 export async function importTrades(list) {
   for (const t of list) await db.add(t);
   state.txns = await db.all();
@@ -121,9 +129,25 @@ export async function importFile(file) {
   }
 }
 
+// Show amounts in the currency chosen in the top banner. Mixed (''): each stock keeps its own currency, totals are in ringgit.
+export const CURRENCIES = [['MY', 'MYR'], ['US', 'USD'], ['SG', 'SGD'], ['HK', 'HKD'], ['UK', 'GBP'], ['EU', 'EUR']];
+function inShown(v, market) {
+  const to = state.currency;
+  if (!to || to === market) return { v, market };
+  const myr = toMYR(v, market, state.live.rates);
+  const rate = to === 'MY' ? 1 : state.live.rates?.[RATE_KEY[to]];
+  return myr == null || !rate ? { v, market } : { v: myr / rate, market: to }; // no exchange rate yet: leave it as it is
+}
+export const cash = (v, market) => { const x = inShown(v, market); return money(x.v, x.market); };
+export const cashSigned = (v, market) => (v > 0 ? '+' : v < 0 ? '−' : '') + cash(Math.abs(v), market);
+export const shownTotal = v => inShown(v, 'MY').v;                  // a ringgit total as a number in the chosen currency
+export const shownMarket = () => inShown(0, 'MY').market;           // the market whose symbol goes with shownTotal
+
 // "Last export" note
 const remember = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
 export const lastExport = reactive({ date: remember.get('lastExport') });
+state.currency = CURRENCIES.some(([m]) => m === remember.get('currency')) ? remember.get('currency') : '';
+watch(() => state.currency, c => remember.set('currency', c));
 
 export async function exportCSV() {
   if (!state.txns.length) return toast('No trades to export yet');

@@ -21,4 +21,15 @@ export async function getMarketData(symbols, previous) {
   }
 }
 
+// Latest headlines for one stock. Remembered for 10 minutes so opening the same card again doesn't ask again.
+const newsCache = new Map();
+export async function getNews(symbol) {
+  const hit = newsCache.get(symbol);
+  if (hit && Date.now() - hit.at < 10 * 60 * 1000) return hit.list;
+  const list = await fetch(`${WORKER_URL}/news?symbol=${encodeURIComponent(symbol)}`).then(r => (r.ok ? r.json() : Promise.reject()));
+  if (!Array.isArray(list)) throw new Error('bad news');
+  newsCache.set(symbol, { at: Date.now(), list });
+  return list;
+}
+
 export const searchStocks = q => fetch(`${WORKER_URL}/search?q=${encodeURIComponent(q)}`).then(r => r.json());

@@ -1,7 +1,7 @@
 // Stocks page: pull down to refresh, the total card, quick facts and your stock cards.
 import { ref, computed } from '../vendor/vue.esm-browser.prod.js';
-import { state, summary, refresh, openSheet, loadExample } from '../store.js';
-import { money, signed, tone } from '../lib/format.js';
+import { state, summary, refresh, openSheet, loadExample, cash, cashSigned } from '../store.js';
+import { tone } from '../lib/format.js';
 import TotalCard from './TotalCard.js';
 import StockCard from './StockCard.js';
 
@@ -30,11 +30,11 @@ export default {
       <template v-else>
         <TotalCard/>
         <ul class="facts">
-          <li><span>Dividends expected</span><b class="div">{{ t.dividends > 0 ? money(t.dividends / 12, 'MY') + ' a month' : 'None yet' }}</b></li>
-          <li><span>Dividends received</span><b class="div">{{ t.received > 0 ? money(t.received, 'MY') : 'None yet' }}</b></li>
-          <li><span>You put in</span><b>{{ money(t.cost, 'MY') }}</b></li>
-          <li><span>Profit from selling</span><b :class="tone(t.realised)">{{ signed(t.realised, 'MY') }}</b></li>
-          <li><span>Commission fees paid</span><b>{{ money(t.fees, 'MY') }}</b></li>
+          <li><span>Dividends expected</span><b class="div">{{ t.dividends > 0 ? cash(t.dividends / 12, 'MY') + ' a month' : 'None yet' }}</b></li>
+          <li><span>Dividends received</span><b class="div">{{ t.received > 0 ? cash(t.received, 'MY') : 'None yet' }}</b></li>
+          <li><span>You put in</span><b>{{ cash(t.cost, 'MY') }}</b></li>
+          <li><span>Profit from selling</span><b :class="tone(t.realised)">{{ cashSigned(t.realised, 'MY') }}</b></li>
+          <li><span>Commission fees paid</span><b>{{ cash(t.fees, 'MY') }}</b></li>
         </ul>
 
         <h2 class="section-title">Your stocks</h2>
@@ -47,8 +47,8 @@ export default {
           <h2 class="section-title">Sold</h2>
           <div class="panel">
             <div v-for="r in s.closed" :key="r.key" class="sold-row">
-              <div><b>{{ r.ticker }}</b><p>All sold{{ r.fees ? ', fees ' + money(r.fees, r.market) : '' }}</p></div>
-              <div class="amount" :class="tone(r.realised)">{{ signed(r.realised, r.market) }}<p>profit</p></div>
+              <div><b>{{ r.ticker }}</b><p>All sold{{ r.fees ? ', fees ' + cash(r.fees, r.market) : '' }}</p></div>
+              <div class="amount" :class="tone(r.realised)">{{ cashSigned(r.realised, r.market) }}<p>profit</p></div>
             </div>
           </div>
         </template>
@@ -75,6 +75,6 @@ export default {
     };
     const ptrHeight = computed(() => (pulling.value ? pull.value : state.loading && state.live.at ? 44 : 0));
 
-    return { state, s, t, openKey, money, signed, tone, openSheet, loadExample, pull, pulling, ptrHeight, pullStart, pullMove, pullEnd, PULL: PULL_TO_REFRESH };
+    return { state, s, t, openKey, cash, cashSigned, tone, openSheet, loadExample, pull, pulling, ptrHeight, pullStart, pullMove, pullEnd, PULL: PULL_TO_REFRESH };
   },
 };

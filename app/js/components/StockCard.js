@@ -1,6 +1,9 @@
 // One stock: two lines you can read at a glance. Tap to smoothly open the details and Buy more / Sell.
-import { openSheet } from '../store.js';
-import { money, signed, signedPct, tone, qty, MARKET_NAME } from '../lib/format.js';
+import { ref, watch } from '../vendor/vue.esm-browser.prod.js';
+import { openSheet, cash, cashSigned } from '../store.js';
+import { toYahoo } from '../lib/markets.js';
+import { getNews } from '../lib/prices.js';
+import { signedPct, tone, qty, ago, MARKET_NAME } from '../lib/format.js';
 
 export default {
   name: 'StockCard',
@@ -11,8 +14,8 @@ export default {
       <button type="button" class="stock-head" :aria-expanded="open" @click="$emit('toggle')">
         <span class="name"><b>{{ row.ticker }}</b><small>{{ row.q?.name || MARKET_NAME[row.market] || row.market }}</small><small>{{ qty(row.units) }} units</small></span>
         <span class="money">
-          <b>{{ money(row.value ?? row.cost, row.market) }}</b>
-          <small :class="tone(row.unreal)">{{ row.unreal != null ? signed(row.unreal, row.market) + ' (' + signedPct(row.unreal, row.cost) + ')' : 'No price yet' }}</small>
+          <b>{{ cash(row.value ?? row.cost, row.market) }}</b>
+          <small :class="tone(row.unreal)">{{ row.unreal != null ? cashSigned(row.unreal, row.market) + ' (' + signedPct(row.unreal, row.cost) + ')' : 'No price yet' }}</small>
         </span>
         <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
       </button>
@@ -20,14 +23,24 @@ export default {
       <div class="stock-more" :inert="open ? null : ''">
         <div class="stock-more-inner">
           <dl class="detail">
-            <div><dt>Price now</dt><dd>{{ row.q ? money(row.q.price, row.market) : '—' }}
+            <div><dt>Price now</dt><dd>{{ row.q ? cash(row.q.price, row.market) : '—' }}
               <span v-if="row.q?.changePct != null" :class="tone(row.q.changePct)">{{ row.q.changePct > 0 ? '+' : '' }}{{ row.q.changePct.toFixed(2) }}% today</span></dd></div>
-            <div><dt>Your average cost</dt><dd>{{ money(row.cost / row.units, row.market) }}</dd></div>
-            <div><dt>Dividends a year</dt><dd><span v-if="row.estDiv" class="div">{{ money(row.estDiv, row.market) }}</span><template v-else>None</template></dd></div>
-            <div><dt>Commission fees paid</dt><dd>{{ row.fees ? money(row.fees, row.market) : 'None' }}</dd></div>
+            <div><dt>Your average cost</dt><dd>{{ cash(row.cost / row.units, row.market) }}</dd></div>
+            <div><dt>Dividends a year</dt><dd><span v-if="row.estDiv" class="div">{{ cash(row.estDiv, row.market) }}</span><template v-else>None</template></dd></div>
+            <div><dt>Commission fees paid</dt><dd>{{ row.fees ? cash(row.fees, row.market) : 'None' }}</dd></div>
             <div><dt>Share of your money</dt><dd>{{ row.share.toFixed(1) }}%</dd></div>
-            <div><dt>Profit from selling</dt><dd><span v-if="row.realised" :class="tone(row.realised)">{{ signed(row.realised, row.market) }}</span><template v-else>None yet</template></dd></div>
+            <div><dt>Profit from selling</dt><dd><span v-if="row.realised" :class="tone(row.realised)">{{ cashSigned(row.realised, row.market) }}</span><template v-else>None yet</template></dd></div>
           </dl>
+          <div class="news" aria-live="polite">
+            <h3>News</h3>
+            <p v-if="news === null && !newsFailed" class="news-note">Loading headlines…</p>
+            <p v-else-if="newsFailed" class="news-note">News isn’t available right now.</p>
+            <p v-else-if="!news.length" class="news-note">No recent news.</p>
+            <ul v-else>
+              <li v-for="n in news" :key="n.link"><a :href="n.link" target="_blank" rel="noopener noreferrer"><span class="news-title">{{ n.title }}</span>
+                <small>{{ n.publisher }}{{ n.publisher ? ' · ' : '' }}{{ ago(n.time) }}</small></a></li>
+            </ul>
+          </div>
           <div class="actions">
             <button type="button" class="btn" @click="openSheet({ action: 'buy', ticker: row.ticker, market: row.market })">Buy more</button>
             <button type="button" class="btn" @click="openSheet({ action: 'sell', ticker: row.ticker, market: row.market })">Sell</button>
@@ -35,7 +48,14 @@ export default {
         </div>
       </div>
     </article>`,
-  setup() {
-    return { money, signed, signedPct, tone, qty, MARKET_NAME, openSheet };
+  setup(props) {
+    // Headlines load the first time you open the card
+    const news = ref(null), newsFailed = ref(false);
+    watch(() => props.open, async isOpen => {
+      if (!isOpen || news.value) return;
+      newsFailed.value = false;
+      try { news.value = await getNews(toYahoo(props.row.ticker, props.row.market)); } catch { newsFailed.value = true; }
+    });
+    return { cash, cashSigned, signedPct, tone, qty, ago, MARKET_NAME, openSheet, news, newsFailed };
   },
 };

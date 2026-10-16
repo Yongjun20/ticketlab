@@ -1,8 +1,8 @@
 // History: export / import, trades grouped by month with totals. Tap a trade to change it;
 // deleted trades slide away and the gap closes; a trade you just saved glows.
-import { ref, computed } from '../vendor/vue.esm-browser.prod.js';
+import { ref, computed, watch, onBeforeUnmount } from '../vendor/vue.esm-browser.prod.js';
 import SwipeRow from './SwipeRow.js';
-import { state, openSheet, deleteTrade, exportCSV, importFile, lastExport, toast } from '../store.js';
+import { state, openSheet, deleteTrade, deleteTrades, cash, exportCSV, importFile, lastExport, toast } from '../store.js';
 import { money, qty, monthName, niceDate, today } from '../lib/format.js';
 import { toMYR } from '../lib/markets.js';
 
@@ -13,8 +13,17 @@ export default {
   components: { SwipeRow },
   template: `
     <div class="history-page">
-      <h1 class="page-title">History</h1>
-      <p class="hint">Swipe a trade left to edit or delete it.</p>
+      <div class="title-row">
+        <h1 class="page-title">History</h1>
+        <button v-if="state.txns.length" type="button" class="text-btn select-btn" :class="{ done: selecting }" :aria-pressed="selecting" :aria-label="selecting ? 'Done' : 'Select trades'" @click="toggleSelecting">
+          <template v-if="selecting">Done</template>
+          <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="5"/><path d="m8 12.5 3 3 5-6"/></svg>
+        </button>
+      </div>
+      <p class="hint">
+        <template v-if="selecting">Tap trades to choose them, then delete them all at once.</template>
+        <template v-else>Swipe a trade left to edit or delete it. Tap the tick box to delete several.</template>
+      </p>
       <div class="io-row">
         <button type="button" class="io-btn" @click="exportCSV">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m-4-4 4 4 4-4M5 20h14"/></svg>Export CSV</button>
@@ -32,12 +41,16 @@ export default {
       <section v-for="g in groups" :key="g.month" class="month-group">
         <div class="month">
           <h2>{{ g.month }}</h2>
+          <button v-if="selecting" type="button" class="text-btn month-pick" @click="toggleMonth(g)">{{ monthAll(g) ? 'Clear month' : 'Select month' }}</button>
           <p class="month-total"><template v-for="(part, i) in g.parts" :key="i"><template v-if="i"> · </template>{{ part.label }} <b>{{ part.value }}</b></template></p>
         </div>
         <TransitionGroup name="trade" tag="div" class="log-list">
-          <SwipeRow v-for="t in g.list" :key="t.id" :open="openId === t.id" :label="(t.action === 'dividend' ? 'Dividend from ' : t.action === 'sell' ? 'Sold ' : 'Bought ') + t.ticker + ' on ' + niceDate(t.date)"
-            @update:open="v => (openId = v ? t.id : openId === t.id ? null : openId)" @tap="edit(t)" @edit="edit(t)" @delete="remove(t)">
-          <div class="log-item" :class="{ glow: state.glowId === t.id }">
+          <SwipeRow v-for="t in g.list" :key="t.id" :open="!selecting && openId === t.id" :locked="selecting" :label="(t.action === 'dividend' ? 'Dividend from ' : t.action === 'sell' ? 'Sold ' : 'Bought ') + t.ticker + ' on ' + niceDate(t.date)"
+            @update:open="v => (openId = v ? t.id : openId === t.id ? null : openId)" @tap="selecting ? toggle(t.id) : edit(t)" @edit="edit(t)" @delete="remove(t)">
+          <div class="log-item" :class="{ glow: state.glowId === t.id, selecting, picked: picked.has(t.id) }">
+            <span v-if="selecting" class="pick" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>
+            </span>
             <div class="log-left">
               <div class="log-ticker">{{ t.ticker }}
                 <span class="tag" :class="t.action === 'dividend' ? 'tag-div' : t.action === 'sell' ? 'tag-sell' : 'tag-buy'">{{ t.action === 'dividend' ? 'Dividend' : t.action === 'sell' ? 'Sell' : 'Buy' }}</span>
@@ -53,6 +66,17 @@ export default {
           </SwipeRow>
         </TransitionGroup>
       </section>
+
+      <Teleport to="body"><!-- outside the sliding page, so "fixed to the screen" works -->
+      <Transition name="pop">
+        <div v-if="selecting" class="select-bar" role="toolbar" aria-label="Delete several trades">
+          <span class="select-count" aria-live="polite">{{ picked.size ? picked.size + ' selected' : 'None selected' }}</span>
+          <button type="button" class="text-btn" @click="toggleAll">{{ allPicked ? 'Clear' : 'Select all' }}</button>
+          <button type="button" class="select-del" :disabled="!picked.size" @click="removePicked">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>Delete</button>
+        </div>
+      </Transition>
+      </Teleport>
     </div>`,
   setup() {
     // Newest first, grouped by month; month totals in ringgit (today's exchange rate for foreign trades)
@@ -72,9 +96,9 @@ export default {
           if (t.action === 'dividend') divs += rm; else if (t.action === 'sell') sold += rm; else bought += rm;
         }
         g.parts = [
-          bought > 0 && { label: 'Bought', value: money(bought, 'MY') },
-          sold > 0 && { label: 'Sold', value: money(sold, 'MY') },
-          divs > 0 && { label: 'Dividends', value: money(divs, 'MY') },
+          bought > 0 && { label: 'Bought', value: cash(bought, 'MY') },
+          sold > 0 && { label: 'Sold', value: cash(sold, 'MY') },
+          divs > 0 && { label: 'Dividends', value: cash(divs, 'MY') },
           missing && { label: 'some not counted yet', value: '' },
         ].filter(Boolean);
       }
@@ -96,12 +120,35 @@ export default {
       toast('Trade deleted');
     }
 
+    // Select mode: tap trades to pick them, then delete every picked trade at once
+    const selecting = ref(false), picked = ref(new Set());
+    const allIds = computed(() => state.txns.map(t => t.id));
+    const allPicked = computed(() => allIds.value.length > 0 && allIds.value.every(id => picked.value.has(id)));
+    const flip = fn => { const s = new Set(picked.value); fn(s); picked.value = s; };
+    const toggle = id => flip(s => (s.has(id) ? s.delete(id) : s.add(id)));
+    const toggleAll = () => (picked.value = allPicked.value ? new Set() : new Set(allIds.value));
+    const monthAll = g => g.list.every(t => picked.value.has(t.id));
+    const toggleMonth = g => flip(s => { const all = monthAll(g); g.list.forEach(t => (all ? s.delete(t.id) : s.add(t.id))); });
+    function toggleSelecting() { selecting.value = !selecting.value; picked.value = new Set(); openId.value = null; }
+    async function removePicked() {
+      const ids = [...picked.value];
+      if (!ids.length || !confirm(`Delete ${ids.length} trade${ids.length === 1 ? '' : 's'}? You can’t undo this.`)) return;
+      await deleteTrades(ids);
+      toast(`Deleted ${ids.length} trade${ids.length === 1 ? '' : 's'}`);
+      selecting.value = false; picked.value = new Set();
+    }
+    watch(() => state.txns.length, n => { if (!n) selecting.value = false; }); // nothing left to select
+    watch(() => state.tab, t => { if (t !== 1 && selecting.value) toggleSelecting(); }); // leaving History ends Select mode
+    const onKey = e => { if (e.key === 'Escape' && selecting.value) toggleSelecting(); };
+    document.addEventListener('keydown', onKey);
+    onBeforeUnmount(() => document.removeEventListener('keydown', onKey));
+
     function pickFile(e) {
       const file = e.target.files[0];
       e.target.value = ''; // lets you pick the same file again later
       if (file) importFile(file);
     }
 
-    return { state, groups, exportAge, exportNote, openId, edit, remove, pickFile, exportCSV, money, qty, niceDate, cashOf };
+    return { cash, state, groups, exportAge, exportNote, openId, edit, remove, pickFile, selecting, picked, allPicked, toggle, toggleAll, toggleMonth, monthAll, toggleSelecting, removePicked, exportCSV, money, qty, niceDate, cashOf };
   },
 };

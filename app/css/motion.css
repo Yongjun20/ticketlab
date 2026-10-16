@@ -73,12 +73,6 @@
 .save.done .tick { animation: tick 0.4s var(--spring); }
 @keyframes tick { from { transform: scale(0) rotate(-30deg); } }
 
-/* + menu buttons pop up one after another, drop away together */
-.dial-enter-active { transition: opacity 0.25s, transform 0.42s var(--spring); }
-.dial-leave-active { transition: opacity 0.15s, transform 0.15s; transition-delay: 0s !important; }
-.dial-enter-from { opacity: 0; transform: translateY(16px) scale(0.8); }
-.dial-leave-to { opacity: 0; transform: translateY(8px) scale(0.9); }
-
 /* Toasts pop up from above the tab bar */
 .toast-enter-active { transition: opacity 0.25s, transform 0.4s var(--spring); }
 .toast-leave-active { transition: opacity 0.25s, transform 0.25s; }

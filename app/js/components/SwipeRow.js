@@ -6,7 +6,7 @@ const ACTIONS = 148; // width of the two buttons behind the card, px
 
 export default {
   name: 'SwipeRow',
-  props: { open: Boolean, label: String },
+  props: { open: Boolean, label: String, locked: Boolean }, // locked: no swiping (History's Select mode)
   emits: ['update:open', 'tap', 'edit', 'delete'],
   template: `
     <div class="swipe-row" :class="{ open, dragging }">
@@ -33,7 +33,7 @@ export default {
     let pointer = null, startX = 0, startY = 0, base = 0, decided = false, owning = false, lastX = 0, lastT = 0, speed = 0, justDragged = false;
 
     function down(e) {
-      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      if (props.locked || (e.pointerType === 'mouse' && e.button !== 0)) return;
       pointer = e.pointerId; startX = lastX = e.clientX; startY = e.clientY; lastT = e.timeStamp;
       base = props.open ? -ACTIONS : 0; decided = false; owning = false; speed = 0;
     }

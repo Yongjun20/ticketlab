@@ -17,3 +17,13 @@ export const niceDate = d => new Date(d + 'T00:00').toLocaleDateString('en-GB', 
 export const monthName = d => new Date(d + 'T00:00').toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
 export const stamp = d =>
   `${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}, ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+
+// "5 minutes ago", "2 hours ago", "3 days ago" from a Unix time in seconds
+export function ago(sec) {
+  const m = Math.max(0, Math.round((Date.now() / 1000 - sec) / 60));
+  if (m < 60) return m <= 1 ? 'just now' : `${m} minutes ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h} hour${h === 1 ? '' : 's'} ago`;
+  const d = Math.round(h / 24);
+  return `${d} day${d === 1 ? '' : 's'} ago`;
+}

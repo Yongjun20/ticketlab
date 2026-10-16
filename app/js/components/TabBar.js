@@ -3,13 +3,13 @@
 import { ref, watch, onBeforeUnmount } from '../vendor/vue.esm-browser.prod.js';
 import { state, pagerApi, openSheet, importFile, exportCSV } from '../store.js';
 
-// Nearest the + first (they pop up in this order)
+// Bubbles fan out around the +, starting straight above it and sweeping round to the left (they pop out in this order)
 const ITEMS = [
   { key: 'buy', label: 'Bought', icon: '<path d="M12 5v14M5 12h14"/>' },
   { key: 'sell', label: 'Sold', icon: '<path d="M5 12h14"/>' },
   { key: 'dividend', label: 'Dividend', icon: '<path d="M12 3v18M16 7.5c0-1.7-1.8-3-4-3s-4 1.3-4 3 1.8 2.6 4 3 4 1.3 4 3-1.8 3-4 3-4-1.3-4-3"/>' },
-  { key: 'import', label: 'Import CSV', icon: '<path d="M12 15V4m-4 4 4-4 4 4M5 20h14"/>' },
-  { key: 'export', label: 'Export CSV', icon: '<path d="M12 4v11m-4-4 4 4 4-4M5 20h14"/>' },
+  { key: 'import', label: 'Import', icon: '<path d="M12 15V4m-4 4 4-4 4 4M5 20h14"/>' },
+  { key: 'export', label: 'Export', icon: '<path d="M12 4v11m-4-4 4 4 4-4M5 20h14"/>' },
 ];
 
 export default {
@@ -30,15 +30,15 @@ export default {
       </button>
     </div>
 
-    <TransitionGroup name="dial" tag="div" class="dial" role="menu" aria-label="Add or import trades">
-      <button v-for="(it, i) in (menu ? items : [])" :key="it.key" type="button" class="dial-item" role="menuitem"
-        :style="{ transitionDelay: i * 45 + 'ms' }" @click="choose(it.key)">
-        <span class="dial-label">{{ it.label }}</span>
+    <div class="dial" :class="{ open: menu }" role="menu" aria-label="Add or import trades">
+      <button v-for="(it, i) in items" :key="it.key" type="button" class="dial-item" :class="{ left: START + i * STEP >= 120 }" role="menuitem" :tabindex="menu ? 0 : -1" :aria-hidden="!menu"
+        :style="spot(i)" @click="choose(it.key)">
         <span class="dial-circle" :class="'dial-' + it.key">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" v-html="it.icon"></svg>
         </span>
+        <span class="dial-label">{{ it.label }}</span>
       </button>
-    </TransitionGroup>
+    </div>
     <input ref="file" type="file" class="sr-only" accept=".csv,.txt,.xlsx,.xls,text/csv" tabindex="-1" aria-hidden="true" @change="pickFile">`,
   setup() {
     const tabs = [
@@ -46,6 +46,18 @@ export default {
       { name: 'History', icon: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>' },
     ];
     const menu = ref(false), file = ref(null);
+
+    // Where bubble i sits: on an arc around the +. Opening pops them out one by one; closing pulls them back in, last one first.
+    const RADIUS = 185, START = 90, STEP = 18; // px, degrees: 90 = straight up, bigger = further round to the left
+    function spot(i) {
+      const a = ((START + i * STEP) * Math.PI) / 180;
+      return {
+        '--dx': Math.round(Math.cos(a) * RADIUS) + 'px',
+        '--dy': Math.round(-Math.sin(a) * RADIUS) + 'px',
+        '--do': i * 55 + 'ms',                        // opening: one by one, nearest the top first
+        '--dc': (ITEMS.length - 1 - i) * 40 + 'ms',    // closing: the last one goes back in first
+      };
+    }
 
     function choose(key) {
       if (key === 'buy' || key === 'sell' || key === 'dividend') openSheet({ action: key });
@@ -91,6 +103,6 @@ export default {
     watch(menu, open => (open ? document.addEventListener('keydown', onKey) : document.removeEventListener('keydown', onKey)));
     onBeforeUnmount(() => document.removeEventListener('keydown', onKey));
 
-    return { state, tabs, items: ITEMS, menu, file, choose, pickFile, down, move, up };
+    return { state, tabs, items: ITEMS, menu, file, spot, START, STEP, choose, pickFile, down, move, up };
   },
 };

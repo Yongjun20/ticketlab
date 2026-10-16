@@ -14,6 +14,10 @@ A personal stock and dividend tracker for Bursa Malaysia and US stocks. Record y
 - Records buy and sell trades, with commission fees (stamp duty and platform fee) counted in your cost and profit.
 - Shows average-cost profit and loss for each stock, with live prices.
 - Converts US and other currencies to MYR using live exchange rates.
+- Records dividends you actually received, and shows them next to the estimate.
+- Shows everything in one currency of your choice (pick it with the little icon on the total card), or Mixed to see each stock in its own currency.
+- Select several trades in History and delete them in one go.
+- Shows the latest news headlines for each stock when you open its card (from Yahoo Finance; some Bursa stocks have none).
 - Searches stocks by name, so you can type "micron" and pick the ticker.
 - Imports trades from CSV or Excel files (Moomoo, Webull, or your own records) and detects the columns for you.
 - Exports all your trades to a CSV file.
@@ -23,12 +27,13 @@ Your trades are saved in your own browser (IndexedDB). They are never sent anywh
 
 ## How to use it
 
-1. **Add a trade:** tap the **+** button, then **Bought** or **Sold**. Type a stock name, pick it from the list, then fill in the date, number of units, price and fees.
-2. **See your stocks:** the **Stocks** page shows your total value, a ring chart of your holdings, and a card for each stock. Tap a card for details. Pull down to refresh prices.
-3. **See your history:** the **History** page lists every trade by month. Swipe a trade left to edit or delete it.
-4. **Move between pages:** tap **Stocks** or **History**, or drag the tab bar, or swipe the page sideways.
-5. **Import:** tap **+**, then **Import CSV**. Choose a file, check the preview, then confirm. Trades you already have are skipped.
-6. **Export:** tap **+**, then **Export CSV**.
+1. **Add a trade:** tap the **+** button, then **Bought**, **Sold** or **Dividend** (cash you received). Type a stock name, pick it from the list, then fill in the date, number of units, price and fees.
+2. **Change currency:** tap the little globe or banknote icon on the total card to show everything in MYR, USD, SGD, HKD, GBP or EUR. Mixed shows each stock in its own currency.
+3. **See your stocks:** the **Stocks** page shows your total value, a ring chart of your holdings, and a card for each stock. Tap a card for details. Pull down to refresh prices.
+4. **See your history:** the **History** page lists every trade by month. Swipe a trade left to edit or delete it, or tap the tick box at the top to select several and delete them together.
+5. **Move between pages:** tap **Stocks** or **History**, or drag the tab bar, or swipe the page sideways.
+6. **Import:** tap **+**, then **Import CSV**. Choose a file, check the preview, then confirm. Trades you already have are skipped.
+7. **Export:** tap **+**, then **Export CSV**.
 
 ## Set it up yourself
 
@@ -50,7 +55,7 @@ worker.js     the Cloudflare Worker that fetches prices, rates and stock search
 preview.js    small local server for trying the app on your computer
 ```
 
-Built with Vue 3 (included in `app/js/vendor`), plain CSS, and a Cloudflare Worker that reads Yahoo Finance data.
+Built with Vue 3 (included in `app/js/vendor`), plain CSS, and a Cloudflare Worker that reads Yahoo Finance data (prices, exchange rates, stock search and news).
 
 ## Disclaimer
 
