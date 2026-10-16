@@ -197,7 +197,7 @@ export function rowToTrade(row, map, { dateOrder = 'dmy', defaultMarket = 'US' }
   const tax = parseNum(get('tax'));
   return { trade: {
     date, ticker: t.ticker, market, action,
-    type: /growth/i.test(get('type')) ? 'growth' : 'dividend',
+    type: /dividend/i.test(get('type')) ? 'dividend' : 'growth', // no kind in the file: Growth, like a new trade
     units, price: +price.toFixed(6), fee: +fee.toFixed(4),
     divTax: tax >= 0 && tax <= 100 ? tax : DEFAULT_TAX[market] ?? 0,
     notes: get('notes'),

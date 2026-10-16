@@ -2,6 +2,7 @@
 // Runs when the app opens (problems show in the browser console) and in the Node test.
 import { buildHoldings, summarize } from './holdings.js';
 import { toYahoo, fromYahoo } from './markets.js';
+import { buildEarned } from './earned.js';
 import { analyse, shortDate, daysUntil, perShare } from './dividends.js';
 import { mergeNews, countByDay, matchStocks, monthCells, dateKey } from './news.js';
 import { parseCSV, parseNum, parseDateCell, guessDateOrder, cleanTicker, detectMapping, rowToTrade, tradesToCSV, tradeKey } from './csv.js';
@@ -51,6 +52,29 @@ export function runSelfChecks() {
   ok(c.freq === 'Twice a year' && !c.next.estimated && shortDate(c.next.ex) === '10 Mar 2027' && c.pay.past === false, 'dividend calendar date wins');
   ok(analyse({ history: [{ ex: D('2023-01-05'), amount: 0.1 }, { ex: D('2023-04-05'), amount: 0.1 }] }, t0).next === null && analyse({ history: [] }, t0) === null, 'no estimate once a stock stopped paying');
   ok(daysUntil(D('2026-10-19'), t0) === 3 && perShare(0.31, 'RM') === 'RM0.310' && perShare(24.5, '$') === '$24.50', 'dividend helpers');
+
+  // Dividends earned: units held before each ex-date x dividend per share, minus tax; a hand-recorded dividend replaces the matching one; a reinvested one adds units
+  const U = s => Math.floor(Date.parse(s + 'T00:00:00Z') / 1000);
+  const ev = buildEarned([
+    { id: 1, date: '2026-01-05', ticker: 'X', market: 'MY', action: 'buy', units: 100, price: 9, divTax: 0 },
+    { id: 2, date: '2026-03-01', ticker: 'X', market: 'MY', action: 'buy', units: 50, price: 9, divTax: 0 },
+    { id: 3, date: '2026-05-01', ticker: 'X', market: 'MY', action: 'sell', units: 30, price: 10, divTax: 0 },
+    { id: 4, date: '2026-01-05', ticker: 'A', market: 'US', action: 'buy', units: 10, price: 100, divTax: 30 },
+    { id: 5, date: '2026-04-20', ticker: 'X', market: 'MY', action: 'dividend', amount: 17.5 },                       // recorded by hand for the April dividend
+    { id: 90, date: '2026-03-20', ticker: 'A', market: 'US', action: 'dividend', auto: true, evKey: 'US:A:2026-03-20', linkId: 91, amount: 7 },
+    { id: 91, date: '2026-03-20', ticker: 'A', market: 'US', action: 'buy', units: 0.5, price: 14 },                  // the reinvest Buy
+  ], {
+    'X.KL': { history: [{ ex: U('2025-12-01'), amount: 0.10 }, { ex: U('2026-02-10'), amount: 0.10 }, { ex: U('2026-04-10'), amount: 0.12 }, { ex: U('2026-06-10'), amount: 0.12 }] },
+    'A': { history: [{ ex: U('2026-03-20'), amount: 1 }, { ex: U('2026-06-20'), amount: 1 }] },
+  }, { usdMyr: 4 }, U('2026-10-16'));
+  const byKey = Object.fromEntries(ev.events.map(e => [e.key, e]));
+  // X: Dec 2025 is before you owned it (skipped); Feb 100 x 0.10 = 10; Apr 150 x 0.12 = 18 but you recorded 17.5; Jun 120 x 0.12 = 14.4
+  ok(ev.events.filter(e => e.ticker === 'X').length === 3 && near(byKey['MY:X:2026-02-10'].amount, 10) && near(byKey['MY:X:2026-06-10'].amount, 14.4), 'earned: units held on each ex-date');
+  ok(byKey['MY:X:2026-04-10'].source === 'manual' && near(byKey['MY:X:2026-04-10'].amount, 17.5) && ev.events.length === 5, 'earned: a recorded dividend replaces the matching one');
+  // A: Mar 10 x 1 = 10, 30% tax -> 7, reinvested as 0.5 units; Jun (10.5 units) 10.5 x 0.7 = 7.35
+  ok(byKey['US:A:2026-03-20'].reinvest && near(byKey['US:A:2026-03-20'].unitsAdded, 0.5) && near(byKey['US:A:2026-03-20'].amount, 7) && near(byKey['US:A:2026-06-20'].units, 10.5) && near(byKey['US:A:2026-06-20'].net, 7.35), 'earned: tax, reinvest and the units it adds');
+  // ringgit: X 10 + 17.5 + 14.4 = 41.9; A (7 + 7.35) x 4 = 57.4; wallet = all - reinvested (7 x 4 = 28)
+  ok(near(ev.totals.all, 41.9 + 57.4) && near(ev.totals.reinvested, 28) && near(ev.totals.wallet, 41.9 + 29.4) && near(ev.totals.year, ev.totals.all), 'earned: totals in ringgit');
 
   // Fees: buy 100 @ 9 + 10 → cost 910; sell 50 @ 10 + 5 → realised (10 − 9.10) × 50 − 5 = 40
   const [f] = buildHoldings([

@@ -16,6 +16,7 @@ A personal stock and dividend tracker for Bursa Malaysia and US stocks. Record y
 - Converts US and other currencies to MYR using live exchange rates.
 - Records dividends you actually received, and shows them next to the estimate.
 - Shows everything in one currency of your choice (pick it with the little icon on the total card), or Mixed to see each stock in its own currency.
+- **Dividends earned:** the Dividends tab works out what each stock paid you (units you held × dividend per share, minus tax), with totals for all time and this year. Each dividend has a **Wallet / Reinvest** switch: Reinvest adds a Buy that raises your units, Wallet keeps it as cash.
 - A **Dividends** tab: for each stock you hold, the next ex-dividend date (marked est. when worked out from past dividends), the pay date when known, the last dividend per share, and what the last dividend would pay on your units.
 - A **News** tab with three views: **Summary** (Brent oil, the US 10-year yield, the S&P 500, plus Nasdaq, VIX, KLCI, gold and USD/MYR), **Stocks** (headlines about the stocks you hold) and **Others** (other Malaysian and US market headlines from Bernama, Malay Mail, FMT, CNBC and MarketWatch). Stocks and Others have a month calendar: pick a day, tap a headline to read it on the original site. Headlines are saved on your phone as the app opens, so earlier days fill in over time.
 - Deleted a trade by mistake? An **Undo** button shows for a few seconds after every delete.

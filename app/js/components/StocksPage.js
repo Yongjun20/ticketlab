@@ -1,15 +1,15 @@
 // Stocks page: pull down to refresh, the total card, quick facts and your stock cards.
 import { ref, computed } from '../vendor/vue.esm-browser.prod.js';
-import { state, summary, refresh, openSheet, loadExample, cash, cashSigned } from '../store.js';
+import { state, summary, refresh, openSheet, loadExample, cash, cashSigned, earned } from '../store.js';
 import { tone } from '../lib/format.js';
 import TotalCard from './TotalCard.js';
-import StockCard from './StockCard.js';
+import GroupCard from './GroupCard.js';
 
 const PULL_TO_REFRESH = 64; // px you need to pull before letting go refreshes
 
 export default {
   name: 'StocksPage',
-  components: { TotalCard, StockCard },
+  components: { TotalCard, GroupCard },
   template: `
     <div class="stocks-page" @touchstart.passive="pullStart" @touchmove.passive="pullMove" @touchend="pullEnd" @touchcancel="pullEnd">
       <div class="ptr" :class="{ dragging: pulling, armed: pull >= PULL }" :style="{ height: ptrHeight + 'px' }" aria-hidden="true">
@@ -30,18 +30,17 @@ export default {
       <template v-else>
         <TotalCard/>
         <ul class="facts">
-          <li><span>Dividends expected</span><b class="div">{{ t.dividends > 0 ? cash(t.dividends / 12, 'MY') + ' a month' : 'None yet' }}</b></li>
-          <li><span>Dividends received</span><b class="div">{{ t.received > 0 ? cash(t.received, 'MY') : 'None yet' }}</b></li>
+          <li><span>Dividends received</span><b class="div">{{ gotDividends > 0 ? cash(gotDividends, 'MY') : 'None yet' }}</b></li>
           <li><span>You put in</span><b>{{ cash(t.cost, 'MY') }}</b></li>
           <li><span>Profit from selling</span><b :class="tone(t.realised)">{{ cashSigned(t.realised, 'MY') }}</b></li>
           <li><span>Commission fees paid</span><b>{{ cash(t.fees, 'MY') }}</b></li>
         </ul>
 
-        <h2 class="section-title">Your stocks</h2>
-        <p v-if="!s.open.length" class="note">You've sold everything. Your past stocks are below.</p>
-        <TransitionGroup name="list" tag="div" class="stocks">
-          <StockCard v-for="r in s.open" :key="r.key" :row="r" :open="openKey === r.key" @toggle="openKey = openKey === r.key ? null : r.key"/>
-        </TransitionGroup>
+        <template v-if="!s.open.length">
+          <h2 class="section-title">Your stocks</h2>
+          <p class="note">You've sold everything. Your past stocks are below.</p>
+        </template>
+        <GroupCard v-for="g in groups" :key="g.key" :title="g.title" :kind="g.key" :rows="g.rows" :open-key="openKey" @toggle="k => (openKey = openKey === k ? null : k)"/>
 
         <template v-if="s.closed.length">
           <h2 class="section-title">Sold</h2>
@@ -75,6 +74,15 @@ export default {
     };
     const ptrHeight = computed(() => (pulling.value ? pull.value : state.loading && state.live.at ? 44 : 0));
 
-    return { state, s, t, openKey, cash, cashSigned, tone, openSheet, loadExample, pull, pulling, ptrHeight, pullStart, pullMove, pullEnd, PULL: PULL_TO_REFRESH };
+    // what you earned from dividends (worked out from the dividend history), or what you recorded by hand if that isn't loaded yet
+    const gotDividends = computed(() => (earned.value.events.length ? earned.value.totals.all : t.value.received));
+    // your stocks in two tidy groups (a stock with no kind saved counts as a dividend stock); each group keeps the biggest first
+    const groups = computed(() => [['growth', 'Growth stocks'], ['dividend', 'Dividend stocks']]
+      .map(([key, title]) => {
+        const rows = summary.value.open.filter(r => (r.type === 'growth') === (key === 'growth'));
+        return { key, title, rows, total: rows.reduce((sum, r) => sum + (r.valueMYR ?? 0), 0) };
+      })
+      .filter(g => g.rows.length));
+    return { state, s, t, gotDividends, groups, openKey, cash, cashSigned, tone, openSheet, loadExample, pull, pulling, ptrHeight, pullStart, pullMove, pullEnd, PULL: PULL_TO_REFRESH };
   },
 };

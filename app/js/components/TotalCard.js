@@ -1,7 +1,8 @@
 // Total portfolio value, styled like a ringgit note: rolling-digit total, gain pill, ring + legend,
 // exchange-rate chips, time of the prices, and a small reload button that spins while prices load.
 import { ref, computed, watch, onBeforeUnmount } from '../vendor/vue.esm-browser.prod.js';
-import { state, summary, refresh, cash, shownTotal, shownMarket, CURRENCIES } from '../store.js';
+import { state, summary, refresh, cash, masked, shownTotal, shownMarket, CURRENCIES, isNight, toggleTheme } from '../store.js';
+import { tap } from '../lib/haptic.js';
 import { money, pct, stamp } from '../lib/format.js';
 import { ICONS } from '../lib/currencyIcons.js';
 import Odometer from './Odometer.js';
@@ -17,6 +18,12 @@ export default {
       <div class="tc-top">
         <p class="tc-label">Total portfolio value</p>
         <div class="tc-tools">
+        <button type="button" class="theme-switch" :class="{ night: swNight, dragging: swX !== null }" :style="swX !== null ? { '--kx': swX + 'px' } : null" role="switch" :aria-checked="night" aria-label="Night mode"
+          @click="flip" @pointerdown="swDown" @pointermove="swMove" @pointerup="swUp" @pointercancel="swUp">
+          <svg class="ts-icon ts-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2" fill="currentColor" stroke="none"/><path d="M12 2.5v2.4M12 19.1v2.4M2.5 12h2.4M19.1 12h2.4M5.3 5.3l1.7 1.7M17 17l1.7 1.7M5.3 18.7 7 17M17 7l1.7-1.7"/></svg>
+          <svg class="ts-icon ts-moon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.5 14.6A7.4 7.4 0 0 1 9.4 4.9 7.6 7.6 0 1 0 17.5 14.6z"/><path d="m19 3.4.9 1.9 2 .3-1.5 1.4.4 2-1.8-1-1.8 1 .4-2-1.5-1.4 2-.3z"/></svg>
+          <span class="ts-knob"></span>
+        </button>
         <div class="tc-cur" ref="curBox">
           <button type="button" class="tc-cur-btn" :aria-expanded="curOpen" aria-haspopup="listbox"
             :aria-label="'Showing amounts in ' + curName + '. Change currency'" :title="curName" @click="curOpen = !curOpen">
@@ -38,7 +45,16 @@ export default {
         </button>
         </div>
       </div>
-      <p class="tc-worth"><Odometer :value="shownTotal(t.value)" :format="v => money(v, shownMarket())"/></p>
+      <div class="tc-worth-row">
+        <p class="tc-worth">
+          <Odometer v-if="!state.hide" :value="shownTotal(t.value)" :format="v => money(v, shownMarket())"/>
+          <span v-else class="tc-masked">{{ masked('MY') }}</span>
+        </p>
+        <button type="button" class="eye" :aria-pressed="state.hide" :aria-label="state.hide ? 'Show the big numbers' : 'Hide the big numbers'" @click="state.hide = !state.hide">
+          <svg v-if="!state.hide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+          <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.7 10.7 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.2 4"/><path d="M6.6 6.6C3.7 8.4 2 12 2 12s3.6 7 10 7a10.4 10.4 0 0 0 4.2-.9"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>
+        </button>
+      </div>
       <Transition name="pop">
         <p v-if="state.live.at" class="tc-pill" :class="t.profit >= 0 ? 'up' : 'down'">
           {{ t.profit >= 0 ? '▲' : '▼' }} {{ cash(Math.abs(t.profit), 'MY') }} · {{ pct(t.profit, t.cost) }} all time
@@ -73,6 +89,31 @@ export default {
     });
     onBeforeUnmount(() => { document.removeEventListener('pointerdown', away); document.removeEventListener('keydown', esc); });
 
-    return { state, s, t, fx, money, pct, stamp, refresh, cash, shownTotal, shownMarket, ICONS, curOpen, curBox, options, curName, choose };
+    const night = computed(() => (state.theme ? state.theme === 'dark' : isNight()));
+    // The switch: tap it, or slide the knob (it follows your finger and settles on the nearer side; right = day, left = night)
+    const REACH = 32; // how far the knob travels, in px
+    const swX = ref(null), swNight = computed(() => (swX.value === null ? night.value : swX.value < REACH / 2));
+    let swStart = null, swFrom = 0, swMoved = false;
+    const swDown = e => { swStart = e.clientX; swFrom = night.value ? 0 : REACH; swMoved = false; try { e.currentTarget.setPointerCapture(e.pointerId); } catch {} };
+    const swMove = e => {
+      if (swStart === null) return;
+      const dx = e.clientX - swStart;
+      if (!swMoved && Math.abs(dx) < 4) return;
+      if (!swMoved) tap();
+      swMoved = true;
+      swX.value = Math.max(0, Math.min(REACH, swFrom + dx));
+    };
+    const swUp = () => {
+      if (swStart === null) return;
+      swStart = null;
+      if (swMoved && swX.value !== null) {
+        const wantNight = swX.value < REACH / 2;
+        if (wantNight !== night.value) { tap(); state.theme = wantNight ? 'dark' : 'light'; }
+        setTimeout(() => { swMoved = false; }, 80); // the click that follows a drag is not a tap
+      }
+      swX.value = null;
+    };
+    const flip = () => { if (swMoved) return; tap(); toggleTheme(); };
+    return { night, swX, swNight, swDown, swMove, swUp, flip, state, s, t, fx, money, pct, stamp, refresh, cash, masked, shownTotal, shownMarket, ICONS, curOpen, curBox, options, curName, choose };
   },
 };

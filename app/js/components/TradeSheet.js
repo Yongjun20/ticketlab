@@ -9,7 +9,7 @@ import { money, qty, niceDate, today, tone, MARKET_NAME, CURRENCY, DEFAULT_TAX }
 
 import BottomSheet from './BottomSheet.js';
 
-const blank = () => ({ action: 'buy', ticker: '', market: 'MY', units: '', price: '', fee: '', date: today(), type: 'dividend', tax: 0, amount: '', notes: '' });
+const blank = () => ({ action: 'buy', ticker: '', market: 'MY', units: '', price: '', fee: '', date: today(), type: 'growth', tax: 0, amount: '', notes: '' });
 
 export default {
   name: 'TradeSheet',
@@ -65,6 +65,14 @@ export default {
           <div class="field"><label for="f-notes-d">Notes</label><input id="f-notes-d" class="input" placeholder="Optional" autocomplete="off" v-model="f.notes"></div>
         </template>
         <template v-else>
+        <div class="field">
+          <span class="label" id="lbl-kind">Kind of stock</span>
+          <div class="seg" role="radiogroup" aria-labelledby="lbl-kind">
+            <button type="button" role="radio" :aria-checked="f.type === 'growth'" @click="chooseKind('growth')">Growth stock</button>
+            <button type="button" role="radio" :aria-checked="f.type === 'dividend'" @click="chooseKind('dividend')">Dividend stock</button>
+          </div>
+          <p class="hint">Applies to every trade of this stock.</p>
+        </div>
         <div class="two">
           <div class="field"><label for="f-units">How many units</label><input id="f-units" class="input" type="number" min="0" step="any" inputmode="decimal" placeholder="100" v-model="f.units"></div>
           <div class="field"><label for="f-price">Price per unit</label><input id="f-price" class="input" type="number" min="0" step="any" inputmode="decimal" placeholder="0.00" v-model="f.price"></div>
@@ -81,12 +89,8 @@ export default {
           <svg class="chev" :class="{ turned: more }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
         <div class="unfold" :class="{ open: more }" :inert="more ? null : ''">
           <div class="more">
-            <div class="two">
-              <div class="field"><label for="f-type">Kind of stock</label>
-                <select id="f-type" class="input" v-model="f.type"><option value="dividend">Dividend</option><option value="growth">Growth</option></select></div>
-              <div class="field"><label for="f-tax">Dividend tax (%)</label><input id="f-tax" class="input" type="number" min="0" max="100" step="any" inputmode="decimal" v-model="f.tax"></div>
-            </div>
-            <div class="field"><label for="f-notes">Notes</label><input id="f-notes" class="input" placeholder="Optional" autocomplete="off" v-model="f.notes"></div>
+            <div class="field"><label for="f-tax">Dividend tax (%)</label><input id="f-tax" class="input" type="number" min="0" max="100" step="any" inputmode="decimal" v-model="f.tax"></div>
+            <div class="field"><label for="f-notes">Notes</label><input id="f-notes" class="input" placeholder="bought on a dip" autocomplete="off" v-model="f.notes"></div>
           </div>
         </div>
         </template>
@@ -114,11 +118,21 @@ export default {
       Object.assign(f, blank(), t
         ? { action: t.action, ticker: t.ticker, market: t.market, units: t.units, price: t.price, fee: t.fee || '', date: t.date, type: t.type || 'dividend', tax: t.divTax ?? 0, amount: t.amount ?? '', notes: t.notes || '' }
         : { action: s.action || 'buy', ticker: s.ticker || '', market: s.market || 'MY', tax: DEFAULT_TAX[s.market || 'MY'] ?? 0 });
-      more.value = false; error.value = ''; busy.value = false; saved.value = false; results.value = null;
+      more.value = false; error.value = ''; busy.value = false; saved.value = false; results.value = null; kindTouched.value = false;
+      if (!t && f.ticker) adoptKind(); // opened from a stock's Buy more / Sell button
       opened = snapshot();
     });
 
     const setMarket = m => { f.market = m; f.tax = DEFAULT_TAX[m] ?? 0; };
+
+    // New stocks start as Growth. A stock you already own keeps its own kind, so adding to it doesn't flip it (unless you change the choice yourself).
+    const kindTouched = ref(false);
+    const chooseKind = k => { f.type = k; kindTouched.value = true; };
+    function adoptKind() {
+      if (kindTouched.value || editing.value) return;
+      const own = holdings.value.find(h => h.ticker === f.ticker.toUpperCase() && h.market === f.market);
+      f.type = own?.type || 'growth';
+    }
 
     const nums = computed(() => ({ units: parseFloat(f.units), price: parseFloat(f.price), fee: String(f.fee).trim() === '' ? 0 : parseFloat(f.fee) }));
     const isDiv = computed(() => f.action === 'dividend');
@@ -151,6 +165,7 @@ export default {
     function typed() {
       const owned = holdings.value.find(h => h.ticker === f.ticker.toUpperCase());
       if (owned) setMarket(owned.market);
+      adoptKind();
       clearTimeout(timer);
       if (!f.ticker) return showOwned();
       if (f.ticker.length < 2) { results.value = null; return; }
@@ -173,6 +188,7 @@ export default {
       seq++;
       f.ticker = x.mapped.ticker;
       setMarket(x.mapped.market); // MU → US
+      adoptKind();
       if (x.price != null && f.price === '') f.price = +x.price.toFixed(4);
       results.value = null;
       document.getElementById('f-units')?.focus();
@@ -213,7 +229,7 @@ export default {
       setTimeout(() => { state.sheet = null; }, 450);
     }
 
-    return { state, f, more, error, busy, saved, isDiv, results, searching, searchNote, markets, editing, ready, total,
+    return { state, f, more, error, busy, saved, isDiv, kindTouched, chooseKind, results, searching, searchNote, markets, editing, ready, total,
       setMarket, showOwned, typed, pick, close, save, money, tone, MARKET_NAME };
   },
 };

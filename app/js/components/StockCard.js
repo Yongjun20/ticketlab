@@ -1,6 +1,6 @@
 // One stock: two lines you can read at a glance. Tap to smoothly open the details and Buy more / Sell.
 import { ref, watch } from '../vendor/vue.esm-browser.prod.js';
-import { openSheet, cash, cashSigned } from '../store.js';
+import { openSheet, cash, cashSigned, setStockKind } from '../store.js';
 import { toYahoo } from '../lib/markets.js';
 import { getNews } from '../lib/prices.js';
 import { signedPct, tone, qty, ago, MARKET_NAME } from '../lib/format.js';
@@ -30,6 +30,16 @@ export default {
             <div><dt>Commission fees paid</dt><dd>{{ row.fees ? cash(row.fees, row.market) : 'None' }}</dd></div>
             <div><dt>Share of your money</dt><dd>{{ row.share.toFixed(1) }}%</dd></div>
             <div><dt>Profit from selling</dt><dd><span v-if="row.realised" :class="tone(row.realised)">{{ cashSigned(row.realised, row.market) }}</span><template v-else>None yet</template></dd></div>
+            <div class="kind-cell"><dt>Kind of stock</dt>
+              <dd>
+                <button type="button" class="tag tag-btn" :class="row.type === 'growth' ? 'tag-growth' : 'tag-div'" aria-haspopup="listbox" :aria-expanded="kindOpen" @click="kindOpen = !kindOpen">
+                  {{ row.type === 'growth' ? 'Growth' : 'Dividend' }}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                </button>
+                <ul v-if="kindOpen" class="kind-menu" role="listbox" aria-label="Kind of stock">
+                  <li><button type="button" role="option" :aria-selected="row.type === 'growth'" @click="chooseKind('growth')">Growth stock<span v-if="row.type === 'growth'" aria-hidden="true">✓</span></button></li>
+                  <li><button type="button" role="option" :aria-selected="row.type !== 'growth'" @click="chooseKind('dividend')">Dividend stock<span v-if="row.type !== 'growth'" aria-hidden="true">✓</span></button></li>
+                </ul>
+              </dd></div>
           </dl>
           <div class="news" aria-live="polite">
             <h3>News</h3>
@@ -49,6 +59,10 @@ export default {
       </div>
     </article>`,
   setup(props) {
+    // the pop-down for the kind of stock: picking one changes every trade of the stock
+    const kindOpen = ref(false);
+    watch(() => props.open, () => { kindOpen.value = false; });
+    const chooseKind = k => { kindOpen.value = false; if ((props.row.type === 'growth') !== (k === 'growth')) setStockKind(props.row.ticker, props.row.market, k); };
     // Headlines load the first time you open the card
     const news = ref(null), newsFailed = ref(false);
     watch(() => props.open, async isOpen => {
@@ -56,6 +70,6 @@ export default {
       newsFailed.value = false;
       try { news.value = await getNews(toYahoo(props.row.ticker, props.row.market)); } catch { newsFailed.value = true; }
     });
-    return { cash, cashSigned, signedPct, tone, qty, ago, MARKET_NAME, openSheet, news, newsFailed };
+    return { cash, cashSigned, kindOpen, chooseKind, signedPct, tone, qty, ago, MARKET_NAME, openSheet, news, newsFailed };
   },
 };

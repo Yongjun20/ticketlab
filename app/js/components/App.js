@@ -7,11 +7,12 @@ import NewsPage from './NewsPage.js';
 import DividendsPage from './DividendsPage.js';
 import TabBar from './TabBar.js';
 import TradeSheet from './TradeSheet.js';
+import ReinvestSheet from './ReinvestSheet.js';
 import ImportSheet from './ImportSheet.js';
 
 export default {
   name: 'App',
-  components: { Pager, StocksPage, HistoryPage, NewsPage, DividendsPage, TabBar, TradeSheet, ImportSheet },
+  components: { Pager, StocksPage, HistoryPage, NewsPage, DividendsPage, TabBar, TradeSheet, ImportSheet, ReinvestSheet },
   template: `
     <div v-if="state.storageError" class="empty">
       <h2>This browser is blocking storage</h2>
@@ -28,6 +29,7 @@ export default {
       </main>
       <TabBar/>
       <TradeSheet/>
+      <ReinvestSheet/>
       <ImportSheet/>
       <TransitionGroup name="toast" tag="div" class="toasts" role="status" aria-live="polite">
         <div v-for="t in state.toasts" :key="t.id" class="toast"><span>{{ t.msg }}</span>

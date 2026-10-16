@@ -101,7 +101,7 @@ export default {
       // Swipe: only sideways drags with a finger; up/down scrolling stays with the browser
       let startX = 0, startY = 0, dx = 0, lastX = 0, lastT = 0, speed = 0, dragging = false, decided = false, pointer = null;
       const width = () => track.value.parentElement.clientWidth;
-      const skip = t => t.closest('input, select, textarea, .fx-row'); // typing, or the sideways-scrolling rate chips
+      const skip = t => t.closest('input, select, textarea, .fx-row, .theme-switch'); // typing, the sideways-scrolling rate chips, or sliding the day/night switch
       const el = track.value;
 
       el.addEventListener('pointerdown', e => {

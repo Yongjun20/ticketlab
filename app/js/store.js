@@ -5,8 +5,10 @@ import { buildHoldings, summarize } from './lib/holdings.js';
 import { toYahoo, toMYR, RATE_KEY } from './lib/markets.js';
 import { getMarketData, isFresh, keyOf, getFeed, getDividends, getMarkets, getNews } from './lib/prices.js';
 import { mergeNews } from './lib/news.js';
+import { buildEarned } from './lib/earned.js';
 import { tradesToCSV, parseCSV, findHeaderRow, detectMapping, guessDateOrder, tradeKey } from './lib/csv.js';
-import { today, money } from './lib/format.js';
+import { today, money, CURRENCY } from './lib/format.js';
+import { success, warn } from './lib/haptic.js';
 
 export const state = reactive({
   ready: false,
@@ -17,6 +19,7 @@ export const state = reactive({
   tab: 0,            // 0 = Stocks, 1 = History
   tabPos: 0,         // follows your finger while swiping (0…1), drives the tab pill
   tabAnimate: false, // pill glides when true, follows the finger when false
+  reinvest: null,    // the dividend being reinvested: { ev }
   sheet: null,       // the open trade form: { mode: 'add' | 'edit', action, ticker, market, trade }
   importJob: null,   // the file being imported
   toasts: [],
@@ -27,6 +30,8 @@ export const state = reactive({
   newsAt: 0,         // when we last asked the worker
   newsLoading: false,
   newsError: '',
+  theme: '',         // '' = follow the phone, or 'light' / 'dark' (the sun/moon button)
+  hide: false,      // hide the three big numbers (the eye button on the total card)
   currency: '',      // '' = mixed (each stock in its own currency); otherwise a market key like 'MY' or 'US' to show everything in
 });
 
@@ -35,11 +40,14 @@ export const pagerApi = { drag: () => {}, drop: () => {} };
 
 export const holdings = computed(() => buildHoldings(state.txns));
 export const summary = computed(() => summarize(holdings.value, state.live));
+// Dividends you earned (from each stock's past dividends and the units you held), with totals in ringgit
+export const earned = computed(() => buildEarned(state.txns, state.divs, state.live.rates));
 
 export async function load() {
   try {
     await db.open();
     state.txns = await db.all();
+    await unifyKinds(); // one kind per stock, also for trades saved before this rule
   } catch (err) {
     state.storageError = err?.message || String(err);
   }
@@ -64,7 +72,9 @@ export async function refresh(force = false) {
   state.loading = true;
   state.live = await getMarketData(symbols, state.live);
   state.loading = false;
-  idle(() => refreshDividends(symbols));
+  // dividend history for every stock you ever traded (the Earned view needs the ones you sold too)
+  const traded = [...new Set(state.txns.filter(t => t.action !== 'dividend').map(t => toYahoo(t.ticker, t.market)))];
+  idle(() => refreshDividends(traded));
 }
 
 // Dividend dates and amounts for the stocks you hold. Asked again after 12 hours, or when you add a new stock.
@@ -145,13 +155,66 @@ function glow(id) {
   setTimeout(() => { if (state.glowId === id) state.glowId = null; }, 1800);
 }
 
+// A stock has ONE kind (Growth or Dividend) for all its trades, so nothing is ever mixed.
+// setKind: the kind you chose now goes on every trade of that stock. unifyKinds: for data that is already mixed, the latest trade decides.
+async function setKind(ticker, market, kind) {
+  let changed = false;
+  for (const t of state.txns) {
+    if (t.ticker !== ticker || t.market !== market || t.action === 'dividend' || t.type === kind) continue;
+    await db.put({ ...t, type: kind });
+    changed = true;
+  }
+  if (changed) state.txns = await db.all();
+}
+// Change a stock's kind from its pop-out: every trade of the stock follows
+export async function setStockKind(ticker, market, kind) {
+  await setKind(ticker, market, kind);
+  toast(`${ticker} is now a ${kind === 'growth' ? 'Growth' : 'Dividend'} stock`);
+}
+
+export async function unifyKinds() {
+  const latest = new Map();
+  [...state.txns].filter(t => t.action === 'buy' || t.action === 'sell').sort((a, b) => a.date.localeCompare(b.date) || (a.id ?? 0) - (b.id ?? 0))
+    .forEach(t => latest.set(`${t.market}:${t.ticker}`, t.type));
+  let changed = false;
+  for (const t of state.txns) {
+    const kind = latest.get(`${t.market}:${t.ticker}`);
+    if (!kind || t.action === 'dividend' || t.type === kind) continue;
+    await db.put({ ...t, type: kind });
+    changed = true;
+  }
+  if (changed) state.txns = await db.all();
+}
+
 export async function saveTrade(trade, id = null) {
   if (id) await db.put({ ...trade, id });
   else id = await db.add(trade);
   state.txns = await db.all();
+  if ((trade.action === 'buy' || trade.action === 'sell') && trade.type) await setKind(trade.ticker, trade.market, trade.type);
   glow(id);
   refresh();
+  success();
   return id;
+}
+
+// Reinvest a dividend: a Buy that adds units (dated the ex-date), plus a record that remembers which dividend it came from
+export async function reinvestDividend(ev, { units, price }) {
+  const kind = holdings.value.find(h => h.ticker === ev.ticker && h.market === ev.market)?.type || 'dividend';
+  const buyId = await db.add({ date: ev.date, ticker: ev.ticker, market: ev.market, action: 'buy', type: kind, units, price, fee: 0, divTax: ev.tax, notes: `Dividend reinvested (ex ${ev.date})` });
+  await db.add({ date: ev.date, ticker: ev.ticker, market: ev.market, action: 'dividend', type: 'dividend', auto: true, evKey: ev.key, linkId: buyId,
+    units: ev.units, price: ev.perShare, fee: 0, amount: ev.net, notes: 'Reinvested' });
+  state.txns = await db.all();
+  refresh();
+  toast(`Reinvested: +${+units.toFixed(4)} ${ev.ticker}`);
+}
+
+// Back to the Wallet: the reinvest Buy and the record are removed
+export async function undoReinvest(ev) {
+  if (ev.buyId != null) await db.del(ev.buyId);
+  if (ev.recordId != null) await db.del(ev.recordId);
+  state.txns = await db.all();
+  refresh();
+  toast(`${ev.ticker} dividend is back in your Wallet`);
 }
 
 export async function deleteTrade(id) {
@@ -170,6 +233,7 @@ export async function deleteTrades(ids) {
 export async function deleteWithUndo(trades) {
   const saved = trades.map(t => JSON.parse(JSON.stringify(t)));
   await deleteTrades(saved.map(t => t.id));
+  warn();
   const n = saved.length, s = n === 1 ? '' : 's';
   toast(`Deleted ${n} trade${s}`, {
     label: 'Undo',
@@ -183,8 +247,11 @@ export async function deleteWithUndo(trades) {
 }
 
 export async function importTrades(list) {
-  for (const t of list) await db.add(t);
+  const own = new Map(); // a stock you already have keeps its kind, whatever the file says
+  for (const t of state.txns) if (t.action !== 'dividend' && t.type) own.set(`${t.market}:${t.ticker}`, t.type);
+  for (const t of list) await db.add(t.action === 'dividend' || !own.has(`${t.market}:${t.ticker}`) ? t : { ...t, type: own.get(`${t.market}:${t.ticker}`) });
   state.txns = await db.all();
+  await unifyKinds();
   refresh();
 }
 
@@ -236,6 +303,8 @@ function inShown(v, market) {
   const rate = to === 'MY' ? 1 : state.live.rates?.[RATE_KEY[to]];
   return myr == null || !rate ? { v, market } : { v: myr / rate, market: to }; // no exchange rate yet: leave it as it is
 }
+// The eye hides only the three big numbers (the total, and the value on the Growth and Dividend group cards): they show as dots
+export const masked = market => `${CURRENCY[inShown(0, market).market] ?? ''}••••`;
 export const cash = (v, market) => { const x = inShown(v, market); return money(x.v, x.market); };
 export const cashSigned = (v, market) => (v > 0 ? '+' : v < 0 ? '−' : '') + cash(Math.abs(v), market);
 export const shownTotal = v => inShown(v, 'MY').v;                  // a ringgit total as a number in the chosen currency
@@ -246,10 +315,26 @@ const remember = { get: k => { try { return localStorage.getItem(k); } catch { r
 export const lastExport = reactive({ date: remember.get('lastExport') });
 state.currency = CURRENCIES.some(([m]) => m === remember.get('currency')) ? remember.get('currency') : '';
 watch(() => state.currency, c => remember.set('currency', c));
+state.hide = remember.get('hide') === '1';
+watch(() => state.hide, h => remember.set('hide', h ? '1' : '0'));
+
+// Day / night: '' follows the phone until the sun/moon button is tapped, then your choice is remembered
+const BAR = ['#EEF2F6', '#0E1626']; // the phone's top bar colour: day, night
+const systemDark = () => { try { return matchMedia('(prefers-color-scheme: dark)').matches; } catch { return false; } };
+export const isNight = () => state.theme ? state.theme === 'dark' : systemDark();
+function applyTheme(t) {
+  const root = document.documentElement;
+  if (t) root.dataset.theme = t; else delete root.dataset.theme;
+  document.querySelectorAll('meta[name="theme-color"]').forEach((m, i) => { m.content = t ? BAR[t === 'dark' ? 1 : 0] : BAR[i] ?? BAR[0]; });
+}
+state.theme = ['light', 'dark'].includes(remember.get('theme')) ? remember.get('theme') : '';
+applyTheme(state.theme);
+watch(() => state.theme, t => { remember.set('theme', t); applyTheme(t); });
+export const toggleTheme = () => { state.theme = isNight() ? 'light' : 'dark'; };
 
 export async function exportCSV() {
   if (!state.txns.length) return toast('No trades to export yet');
-  const name = `divtracker-trades-${today()}.csv`;
+  const name = `tickerhub-trades-${today()}.csv`;
   const file = new File([tradesToCSV(state.txns)], name, { type: 'text/csv' });
   try {
     // Phones: share sheet (Save to Files / Drive / WhatsApp). PC: normal download.

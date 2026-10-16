@@ -16,6 +16,25 @@
 .tc-pill.down { background: color-mix(in srgb, var(--down) 12%, var(--panel)); }
 .tc-refresh { width: 36px; height: 36px; flex: none; margin: -6px -8px -6px 0; border: 0; border-radius: 50%; background: var(--field); color: var(--ink); display: grid; place-items: center; }
 .tc-refresh svg { width: 16px; height: 16px; }
+/* order across the top: reload | currency | day-night */
+.tc-tools .tc-refresh { order: -1; margin: -6px 0; }
+.tc-tools .theme-switch { order: 1; margin-right: -2px; }
+/* day / night switch: day = light track, sun on the left, knob right; night = dark track, moon on the right, knob left */
+.theme-switch { position: relative; flex: none; width: 64px; height: 32px; padding: 0; border: 0; border-radius: 16px;
+  background: linear-gradient(180deg, #DDE1E7, #F1F3F6); box-shadow: inset 0 2px 4px rgba(20, 33, 61, 0.2), 0 1px 0 rgba(255, 255, 255, 0.7);
+  transition: background 0.35s, box-shadow 0.35s; }
+.theme-switch.night { background: linear-gradient(180deg, #20262E, #353D48); box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.65), 0 1px 0 rgba(255, 255, 255, 0.08); }
+.ts-icon { position: absolute; top: 7px; width: 18px; height: 18px; color: #F2A71B; transition: opacity 0.25s; }
+.ts-sun { left: 8px; }
+.ts-moon { right: 8px; color: #F5B63E; opacity: 0; }
+.theme-switch.night .ts-sun { opacity: 0; }
+.theme-switch.night .ts-moon { opacity: 1; }
+.theme-switch { touch-action: none; cursor: grab; }
+.ts-knob { position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 50%; transform: translateX(var(--kx, 32px));
+  background: radial-gradient(circle at 35% 28%, #FFFFFF, #D3D7DD 78%); box-shadow: 0 2px 5px rgba(0, 0, 0, 0.32), inset 0 -1px 2px rgba(0, 0, 0, 0.12);
+  transition: transform 0.38s var(--spring); }
+.theme-switch.night .ts-knob { transform: translateX(var(--kx, 0px)); }
+.theme-switch.dragging .ts-knob { transition: none; }
 .tc-split { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--line); }
 .tc-foot { display: grid; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); }
 .fx-row { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
@@ -64,7 +83,7 @@
 .unfold.open .legend li.dim { opacity: 0.4; }
 
 /* Quick facts */
-.facts { list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; padding: 6px 4px 0; }
+.facts { list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; padding: 6px 4px 0; text-align: center; }
 .facts span { display: block; color: var(--muted); font-size: 11px; }
 .facts b { font-size: 15px; }
 
@@ -142,6 +161,7 @@
 .tag { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.05em; }
 .tag-buy { background: color-mix(in srgb, var(--up) 14%, transparent); color: var(--up); }
 .tag-div { background: color-mix(in srgb, var(--div) 16%, transparent); color: var(--div); }
+.tag-growth { background: color-mix(in srgb, var(--up) 14%, transparent); color: var(--up); padding: 1px 7px; }
 .tag-sell { background: color-mix(in srgb, var(--down) 14%, transparent); color: var(--down); }
 .tag-info { background: color-mix(in srgb, var(--tag) 14%, transparent); color: var(--tag); }
 /* Swipe a card left to reveal Edit and Delete behind it */
@@ -203,7 +223,30 @@
 .dial-dividend { background: #9A5B00; } /* white icon 5.1:1 */  /* white icon 5.0:1 */
 .dial-import, .dial-export { background: var(--action); color: var(--action-ink); }
 .dial-item:active .dial-circle { transform: scale(0.9); }
-@media (prefers-reduced-transparency: reduce) { .tabbar { background: var(--panel); backdrop-filter: none; -webkit-backdrop-filter: none; } }
+/* Liquid-glass look (tab bar, + button, + menu bubbles): see-through blur, bright rim, soft shine on top */
+.tabbar { background: linear-gradient(180deg, color-mix(in srgb, #FFFFFF 38%, transparent), color-mix(in srgb, #FFFFFF 6%, transparent)), color-mix(in srgb, var(--panel) 44%, transparent);
+  backdrop-filter: blur(22px) saturate(200%) brightness(1.04); -webkit-backdrop-filter: blur(22px) saturate(200%) brightness(1.04);
+  border-color: color-mix(in srgb, #FFFFFF 45%, transparent);
+  box-shadow: var(--shadow), inset 0 1px 0 color-mix(in srgb, #FFFFFF 70%, transparent), inset 0 -1px 0 color-mix(in srgb, #FFFFFF 18%, transparent); }
+.tab-pill { background: linear-gradient(180deg, color-mix(in srgb, #FFFFFF 70%, transparent), color-mix(in srgb, #FFFFFF 28%, transparent));
+  box-shadow: 0 2px 8px rgba(20, 33, 61, 0.12), inset 0 1px 0 color-mix(in srgb, #FFFFFF 85%, transparent), inset 0 0 0 1px color-mix(in srgb, #FFFFFF 40%, transparent); }
+.add, .dial-circle { background-image: linear-gradient(160deg, color-mix(in srgb, #FFFFFF 38%, transparent), transparent 55%);
+  backdrop-filter: blur(12px) saturate(180%); -webkit-backdrop-filter: blur(12px) saturate(180%);
+  box-shadow: var(--shadow), inset 0 1px 0 color-mix(in srgb, #FFFFFF 60%, transparent), inset 0 0 0 1px color-mix(in srgb, #FFFFFF 22%, transparent); }
+.dial-label { background: color-mix(in srgb, var(--panel) 62%, transparent); backdrop-filter: blur(14px) saturate(180%); -webkit-backdrop-filter: blur(14px) saturate(180%);
+  box-shadow: var(--shadow), inset 0 1px 0 color-mix(in srgb, #FFFFFF 60%, transparent); }
+/* night: less white in the glass so the light labels stay readable */
+:root[data-theme="dark"] .tabbar { background: linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.02)), color-mix(in srgb, var(--panel) 55%, transparent); border-color: rgba(255,255,255,0.16); }
+:root[data-theme="dark"] .tab-pill { background: linear-gradient(180deg, rgba(255,255,255,0.22), rgba(255,255,255,0.08)); box-shadow: 0 2px 8px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.3); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .tabbar { background: linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.02)), color-mix(in srgb, var(--panel) 55%, transparent); border-color: rgba(255,255,255,0.16); }
+  :root:not([data-theme="light"]) .tab-pill { background: linear-gradient(180deg, rgba(255,255,255,0.22), rgba(255,255,255,0.08)); box-shadow: 0 2px 8px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.3); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .tabbar { background: var(--panel); backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .add, .dial-circle, .dial-label { backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .dial-label { background: var(--panel); }
+}
 
 /* ── Bottom sheets ───────────────────────────────────────────────────────── */
 .backdrop { position: fixed; inset: 0; z-index: 20; background: rgba(14, 22, 38, 0.5); }
@@ -349,7 +392,7 @@ select.input { padding-right: 34px; background-image: linear-gradient(45deg, tra
 
 /* News page: month calendar + the day's headlines */
 .news-refresh { margin: 0 4px 0 0; }
-.cal { background: var(--panel); border: 1px solid var(--line); border-radius: 20px; padding: 10px 12px 12px; }
+.cal { margin-top: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 20px; padding: 10px 12px 12px; }
 .cal-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .cal-head h2 { font-size: 15px; font-weight: 700; }
 .cal-nav { width: 36px; height: 36px; border: 0; border-radius: 50%; background: var(--field); color: var(--ink); display: grid; place-items: center; }
@@ -393,8 +436,9 @@ select.input { padding-right: 34px; background-image: linear-gradient(45deg, tra
 
 /* News: Summary view */
 .news-bar { margin: 2px 4px 0; }
+.dividends-page .news-bar { margin-bottom: 16px; }
 .brief { display: grid; gap: 10px; }
-.brief-line { margin: 2px 4px 0; font-size: 14px; font-weight: 700; line-height: 1.4; }
+.brief-line { margin: 12px 4px 4px; font-size: 14px; font-weight: 700; line-height: 1.4; } /* room below the Summary / Stocks / Others buttons */
 .brief-main, .brief-more { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .bm { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 10px 14px; display: grid; grid-template-columns: 1fr auto; grid-template-areas: "name value" "move value" "note note"; align-items: center; gap: 1px 12px; }
 .bm-name { grid-area: name; font-size: 12px; font-weight: 600; color: var(--muted); }
@@ -409,3 +453,56 @@ select.input { padding-right: 34px; background-image: linear-gradient(45deg, tra
 .bt b { font-size: 17px; }
 .bt small { font-size: 12px; font-weight: 700; color: var(--div); }
 .brief-time { margin: 0 4px; font-size: 11px; color: var(--muted); }
+
+/* Dividends: Earned view */
+.earn { display: grid; gap: 8px; }
+.earn-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
+.et { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 10px 14px; display: grid; gap: 1px; }
+.et.big { border-color: color-mix(in srgb, var(--div) 45%, var(--line)); }
+.et small { font-size: 12px; font-weight: 600; color: var(--muted); }
+.et b { font-size: 18px; font-weight: 800; color: var(--div); }
+.earn-stocks, .earn-events { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.earn-stocks li { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.es-name { display: grid; gap: 1px; }
+.es-name small { font-size: 11px; color: var(--muted); }
+.ev { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 10px 14px 12px; display: grid; gap: 4px; }
+.ev-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.ev-name { display: flex; align-items: baseline; gap: 8px; }
+.ev-name small { font-size: 11px; color: var(--muted); }
+.ev-net { font-size: 16px; color: var(--div); }
+.ev-line { margin: 0; font-size: 12px; color: var(--muted); }
+.ev-add { color: var(--up); font-weight: 600; }
+.seg { display: grid; grid-template-columns: 1fr 1fr; padding: 3px; border-radius: 12px; background: var(--field); margin-top: 4px; }
+.seg button { min-height: 34px; border: 0; border-radius: 9px; background: none; font-size: 13px; font-weight: 700; color: var(--muted); transition: background 0.2s, color 0.2s; }
+.seg button[aria-checked="true"] { background: var(--panel); color: var(--ink); box-shadow: 0 1px 3px rgba(20, 33, 61, 0.12); }
+
+/* Stocks page: each group (Dividend stocks / Growth stocks) is a summary card on top, then its stock cards */
+.group { display: grid; gap: 10px; margin-top: 8px; padding: 10px; border-radius: 30px; border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--field) 80%, var(--bg)); } /* one container around the summary and its stocks, so they read as a group */
+.group-dividend { --gk: var(--div); }
+.group-growth { --gk: var(--up); }
+.gc-label::before { content: ""; display: inline-block; width: 9px; height: 9px; margin-right: 8px; border-radius: 50%; background: var(--gk, var(--muted)); }
+.gc-head { background: var(--panel); border: 1px solid var(--line); border-radius: 22px; padding: 14px 16px 12px; display: grid; gap: 2px; }
+.gc-label { margin: 0; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.gc-value { margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.01em; }
+.gc-pl { margin: 0; display: flex; gap: 10px; font-size: 14px; font-weight: 700; }
+.gc-stats { margin: 10px 0 0; padding-top: 10px; border-top: 1px dashed var(--line); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.gc-stats div { display: grid; gap: 1px; min-width: 0; }
+.gc-stats dt { font-size: 11px; color: var(--muted); }
+.gc-stats dd { margin: 0; font-size: 13px; font-weight: 700; overflow-wrap: anywhere; }
+
+/* Kind of stock inside a stock's pop-out: the tag opens a small pop-down to choose Growth or Dividend */
+.tag-btn { display: inline-flex; align-items: center; gap: 5px; border: 0; cursor: pointer; }
+.tag-btn svg { width: 11px; height: 11px; transition: transform 0.2s; }
+.tag-btn[aria-expanded="true"] svg { transform: rotate(180deg); }
+.kind-menu { list-style: none; margin: 8px 0 0; padding: 4px; display: grid; gap: 2px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); }
+.kind-menu button { width: 100%; min-height: 38px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 12px; border: 0; border-radius: 10px; background: none; font-size: 13px; font-weight: 700; color: var(--ink); text-align: left; }
+.kind-menu button[aria-selected="true"] { background: var(--field); }
+.kind-menu button span { color: var(--up); }
+
+/* Eye button right beside the total: tap to hide / show the three big numbers. Small, no background; it moves with the number. */
+.tc-worth-row { display: flex; align-items: center; gap: 8px; }
+.tc-worth-row .tc-worth { margin: 0; }
+.tc-masked { letter-spacing: 0.04em; white-space: nowrap; }
+.eye { flex: none; width: 28px; height: 28px; padding: 0; border: 0; background: none; color: var(--muted); display: grid; place-items: center; }
+.eye svg { width: 20px; height: 20px; stroke-width: 2.2; }

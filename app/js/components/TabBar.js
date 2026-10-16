@@ -2,6 +2,7 @@
 // plus a round + button. Tapping + opens a small menu that pops up above it: Bought, Sold, Dividend, Import CSV, Export CSV.
 import { ref, watch, onBeforeUnmount } from '../vendor/vue.esm-browser.prod.js';
 import DialMenu from './DialMenu.js';
+import { tap } from '../lib/haptic.js';
 import { state, pagerApi, openSheet, importFile, exportCSV } from '../store.js';
 
 // Bubbles fan out around the +, starting straight above it and sweeping round to the left (they pop out in this order)
@@ -20,14 +21,14 @@ export default {
     <Transition name="fade"><div v-if="menu" class="menu-backdrop" @click="menu = false"></div></Transition>
     <div class="dock">
       <nav class="tabbar" role="tablist" aria-label="Pages" @pointerdown="down" @pointermove="move" @pointerup="up" @pointercancel="up">
-        <span class="tab-pill" :class="{ settling: state.tabAnimate }" :style="{ transform: 'translateX(' + state.tabPos * 100 + '%)' }" aria-hidden="true"></span>
-        <button v-for="(t, i) in tabs" :key="t.name" type="button" class="tab" role="tab" :aria-selected="state.tab === i" @click="state.tab = i">
+        <span class="tab-pill":class="{ settling: state.tabAnimate }" :style="{ transform: 'translateX(' + state.tabPos * 100 + '%)' }" aria-hidden="true"></span>
+        <button v-for="(t, i) in tabs" :key="t.name" type="button" class="tab" role="tab" :aria-selected="state.tab === i" @click="state.tab !== i && tap(); state.tab = i">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" v-html="t.icon"></svg>
           <span>{{ t.name }}</span>
         </button>
       </nav>
       <button type="button" class="add" :class="{ open: menu }" :aria-expanded="menu" aria-haspopup="menu"
-        :aria-label="menu ? 'Close menu' : 'Add or import trades'" @click="menu = !menu">
+        :aria-label="menu ? 'Close menu' : 'Add or import trades'" @click="tap(); menu = !menu">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
       </button>
     </div>
@@ -42,9 +43,8 @@ export default {
       { name: 'Dividends', icon: '<circle cx="12" cy="12" r="9"/><path d="M12 7v10M14.8 9.2c-.5-1-1.5-1.5-2.8-1.5-1.6 0-2.8.8-2.8 2s1.2 1.7 2.8 2 2.8.8 2.8 2-1.2 2-2.8 2c-1.3 0-2.4-.5-2.9-1.6"/>' },
     ];
     const menu = ref(false), file = ref(null);
-
-
     function choose(key) {
+      tap();
       if (key === 'buy' || key === 'sell' || key === 'dividend') openSheet({ action: key });
       if (key === 'import') file.value.click(); // opens the phone's file picker (allowed because you tapped)
       if (key === 'export') exportCSV();
@@ -91,6 +91,6 @@ export default {
     watch(menu, open => (open ? document.addEventListener('keydown', onKey) : document.removeEventListener('keydown', onKey)));
     onBeforeUnmount(() => document.removeEventListener('keydown', onKey));
 
-    return { state, tabs, items: ITEMS, menu, file, choose, pickFile, down, move, up };
+    return { state, tabs, items: ITEMS, menu, file, tap, choose, pickFile, down, move, up };
   },
 };

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#22345F"/>
+      <stop offset="1" stop-color="#0E1626"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFD27A"/>
+      <stop offset="1" stop-color="#E0A92E"/>
+    </linearGradient>
+  </defs>
+  <!-- a full square: phones round the corners themselves -->
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <!-- three rising bars, the last one gold (growth + dividend) -->
+  <rect x="122" y="268" width="76" height="130" rx="18" fill="#FFFFFF" fill-opacity="0.9"/>
+  <rect x="218" y="206" width="76" height="192" rx="18" fill="#FFFFFF"/>
+  <rect x="314" y="128" width="76" height="270" rx="18" fill="url(#gold)"/>
+  <!-- a baseline -->
+  <rect x="104" y="414" width="304" height="12" rx="6" fill="#FFFFFF" fill-opacity="0.35"/>
+</svg>

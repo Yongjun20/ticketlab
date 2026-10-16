@@ -13,6 +13,7 @@ export function buildHoldings(txns) {
     if (t.action === 'dividend') { paid.set(key, (paid.get(key) || 0) + (t.amount || 0)); continue; } // cash in, no change to units or cost
     let h = map.get(key);
     if (!h) map.set(key, (h = { ticker: t.ticker, market: t.market, type: t.type, units: 0, cost: 0, realised: 0, divTax: 0, fees: 0 }));
+    if (t.type) h.type = t.type; // the kind of stock you chose on your latest trade of it
     if (t.divTax != null) h.divTax = t.divTax; // latest trade's tax % wins
     const fee = t.fee || 0; // commission fees (stamp duty + platform); older trades have none
     h.fees += fee;

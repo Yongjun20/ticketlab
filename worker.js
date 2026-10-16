@@ -182,7 +182,7 @@ async function dividendsFor(symbol) {
     const result = (await res.json()).chart?.result?.[0];
     const scale = result?.meta?.currency === 'GBp' ? 100 : 1; // London prices are in pence
     const history = Object.values(result?.events?.dividends ?? {})
-      .sort((a, b) => a.date - b.date).slice(-12)
+      .sort((a, b) => a.date - b.date).slice(-40)
       .map(d => ({ ex: d.date, amount: round(d.amount / scale, 6) }));
     const cal = await calendar(symbol).catch(() => ({})); // no calendar? the history is still useful
     return { history, calEx: cal.calEx ?? null, calPay: cal.calPay ?? null };
